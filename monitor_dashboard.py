@@ -169,6 +169,9 @@ def main():
                "Independent of the analysis dashboard.")
 
     conn = get_conn()
+    st.session_state.setdefault("last_db_update_output", "")
+    st.session_state.setdefault("last_retry_output", "")
+    st.session_state.setdefault("last_error", "")
 
     # ── Sidebar — manual run ────────────────────────────────────────────
     with st.sidebar:
@@ -180,9 +183,12 @@ def main():
             since = since_input.strip() or None
             with st.spinner("Running DB update…"):
                 output = run_db_updater(since)
-            st.success("Run complete")
-            st.text_area("Output", output, height=300)
-            st.rerun()
+            st.session_state["last_db_update_output"] = output
+            st.session_state["last_error"] = ""
+            st.success("Run complete (output saved below)")
+
+        if st.session_state.get("last_db_update_output"):
+            st.text_area("Last DB Update Output", st.session_state["last_db_update_output"], height=300)
 
         st.divider()
         st.subheader("🔄 Retry Failed Campaigns")
@@ -199,11 +205,18 @@ def main():
                         if v:
                             os.environ[k] = v
                     summary = retry_blocked(conn, monday_key=monday_key)
-                    st.success("Done")
-                    st.text_area("Result", summary, height=250)
-                    st.rerun()
+                    st.session_state["last_retry_output"] = summary
+                    st.session_state["last_error"] = ""
+                    st.success("Done (result saved below)")
                 except Exception as e:
+                    st.session_state["last_error"] = str(e)
+                    st.session_state["last_retry_output"] = ""
                     st.error(f"Error: {e}")
+
+        if st.session_state.get("last_error"):
+            st.text_area("Last Error", st.session_state["last_error"], height=120)
+        if st.session_state.get("last_retry_output"):
+            st.text_area("Last Retry Result", st.session_state["last_retry_output"], height=250)
 
         st.divider()
         st.caption("Analysis dashboard → [Open](https://silverpush-presales-dashboard.streamlit.app)")
