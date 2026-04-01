@@ -217,8 +217,7 @@ def main():
 
         st.divider()
         st.subheader("🔄 Retry Failed Campaigns")
-        st.caption("Re-attempts media plan reading for all ❌ campaigns immediately — "
-                   "no second button click needed.")
+        st.caption("Re-attempts media plan reading for all ❌ campaigns.")
         if st.button("🔄 Retry Now", use_container_width=True):
             with st.spinner("Re-attempting blocked/failed media plans…"):
                 try:
