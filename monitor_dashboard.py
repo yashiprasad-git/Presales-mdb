@@ -189,7 +189,15 @@ def main():
             last_ok = ""
 
         if last_ok:
-            st.caption(f"Manually update the MDB since last run.  \n**Last successful run (UTC):** {last_ok}")
+            # Format example: 26-mar-2026
+            last_date = last_ok
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(last_ok.replace("Z", "+00:00"))
+                last_date = dt.strftime("%d-%b-%Y").lower()
+            except Exception:
+                pass
+            st.caption(f"Manually update the MDB since last run.  \n**Last successful run (UTC):** {last_date}")
         else:
             st.caption("Manually update the MDB since last run.  \n**Last successful run (UTC):** none yet")
         if st.button("▶ Run DB Update Now", use_container_width=True, type="primary"):
