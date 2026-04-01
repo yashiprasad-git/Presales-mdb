@@ -176,10 +176,22 @@ def main():
     # ── Sidebar — manual run ────────────────────────────────────────────
     with st.sidebar:
         st.header("▶ Run DB Update")
-        st.caption(
-            "Manually update the MDB for campaigns added since the last successful run "
-            "(Steps 1 & 2 only — no OpenAI, no inventory check)."
-        )
+        # Show last successful run so users avoid old backfills
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT started_at_utc FROM pipeline_runs "
+                    "WHERE status='success' ORDER BY started_at_utc DESC LIMIT 1"
+                )
+                row = cur.fetchone()
+            last_ok = str(row[0]) if row else ""
+        except Exception:
+            last_ok = ""
+
+        if last_ok:
+            st.caption(f"Manually update the MDB since last run.  \n**Last successful run (UTC):** {last_ok}")
+        else:
+            st.caption("Manually update the MDB since last run.  \n**Last successful run (UTC):** none yet")
         if st.button("▶ Run DB Update Now", use_container_width=True, type="primary"):
             with st.spinner("Running DB update…"):
                 output = run_db_updater(None)
