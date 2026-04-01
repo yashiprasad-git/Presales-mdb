@@ -258,7 +258,7 @@ def main():
     # ── Tabs ────────────────────────────────────────────────────────────
     tab_runs, tab_ctx = st.tabs([
         "📋 Run History",
-        "🔍 Campaign-wise Status",
+        "🔍 Run Results",
     ])
 
     # ── Run History ─────────────────────────────────────────────────────
@@ -290,9 +290,9 @@ def main():
                                "Context Failed", "Context Pending"][:len(merged.columns)]
             st.dataframe(merged, use_container_width=True, hide_index=True)
 
-    # ── Campaign-wise Status ─────────────────────────────────────────────
+    # ── Run Results ─────────────────────────────────────────────────────
     with tab_ctx:
-        st.subheader("Campaign-wise Status")
+        st.subheader("Run Results")
         df_ctx = fetch_context_status(conn)
         if df_ctx.empty:
             st.info("No campaigns yet.")
