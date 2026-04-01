@@ -176,19 +176,24 @@ def main():
     # ── Sidebar — manual run ────────────────────────────────────────────
     with st.sidebar:
         st.header("▶ Run DB Update")
-        st.caption("Manually trigger the DB updater (Steps 1 & 2 only — "
-                   "no OpenAI, no inventory check).")
-        since_input = st.text_input("Since date (YYYY-MM-DD)", placeholder="leave blank for auto")
+        st.caption(
+            "Manually update the MDB for campaigns added since the last successful run "
+            "(Steps 1 & 2 only — no OpenAI, no inventory check)."
+        )
         if st.button("▶ Run DB Update Now", use_container_width=True, type="primary"):
-            since = since_input.strip() or None
             with st.spinner("Running DB update…"):
-                output = run_db_updater(since)
+                output = run_db_updater(None)
             st.session_state["last_db_update_output"] = output
             st.session_state["last_error"] = ""
-            st.success("Run complete (output saved below)")
+            st.success("Run complete")
 
         if st.session_state.get("last_db_update_output"):
-            st.text_area("Last DB Update Output", st.session_state["last_db_update_output"], height=300)
+            with st.expander("📄 View last DB update logs", expanded=False):
+                st.text_area(
+                    "Last DB Update Output",
+                    st.session_state["last_db_update_output"],
+                    height=300,
+                )
 
         st.divider()
         st.subheader("🔄 Retry Failed Campaigns")
@@ -213,10 +218,12 @@ def main():
                     st.session_state["last_retry_output"] = ""
                     st.error(f"Error: {e}")
 
-        if st.session_state.get("last_error"):
-            st.text_area("Last Error", st.session_state["last_error"], height=120)
-        if st.session_state.get("last_retry_output"):
-            st.text_area("Last Retry Result", st.session_state["last_retry_output"], height=250)
+        if st.session_state.get("last_error") or st.session_state.get("last_retry_output"):
+            with st.expander("📄 View last retry logs", expanded=False):
+                if st.session_state.get("last_error"):
+                    st.text_area("Last Error", st.session_state["last_error"], height=140)
+                if st.session_state.get("last_retry_output"):
+                    st.text_area("Last Retry Result", st.session_state["last_retry_output"], height=250)
 
         st.divider()
         st.caption("Analysis dashboard → [Open](https://silverpush-presales-dashboard.streamlit.app)")
