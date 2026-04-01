@@ -274,7 +274,9 @@ def main() -> None:
             if not group.lower().startswith("done"):
                 continue
 
-            created_str = item.get("created_at") or ""
+            # Use updated_at for incremental runs: campaigns may be created long ago
+            # but only moved to "Done" recently. Fall back to created_at if missing.
+            created_str = item.get("updated_at") or item.get("created_at") or ""
             try:
                 created_dt = datetime.datetime.fromisoformat(
                     created_str.replace("Z", "+00:00")).replace(tzinfo=None)
