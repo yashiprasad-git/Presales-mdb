@@ -1,10 +1,6 @@
 name: Daily DB Update
 
 on:
-  # Runs every day at 2:30 AM UTC = 8:00 AM IST (weekdays only)
-  schedule:
-    - cron: "30 2 * * 1-5"
-
   # Also allows manual trigger from GitHub Actions tab
   workflow_dispatch:
     inputs:
