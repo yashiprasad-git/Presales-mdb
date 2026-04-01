@@ -189,17 +189,25 @@ def main():
             last_ok = ""
 
         if last_ok:
-            # Format example: 26-mar-2026
+            # Format example: 26-mar-2026 08:00 IST
             last_date = last_ok
             try:
                 from datetime import datetime
+                try:
+                    from zoneinfo import ZoneInfo
+                    ist = ZoneInfo("Asia/Kolkata")
+                except Exception:
+                    ist = None
+
                 dt = datetime.fromisoformat(last_ok.replace("Z", "+00:00"))
-                last_date = dt.strftime("%d-%b-%Y").lower()
+                if ist is not None:
+                    dt = dt.astimezone(ist)
+                last_date = dt.strftime("%d-%b-%Y %H:%M").lower() + (" IST" if ist is not None else "")
             except Exception:
                 pass
-            st.caption(f"Manually update the MDB since last run.  \n**Last successful run (UTC):** {last_date}")
+            st.caption(f"Manually update the MDB since last run.  \n**Last successful run (IST):** {last_date}")
         else:
-            st.caption("Manually update the MDB since last run.  \n**Last successful run (UTC):** none yet")
+            st.caption("Manually update the MDB since last run.  \n**Last successful run (IST):** none yet")
         if st.button("▶ Run DB Update Now", use_container_width=True, type="primary"):
             with st.spinner("Running DB update…"):
                 output = run_db_updater(None)
