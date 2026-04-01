@@ -147,6 +147,11 @@ def run_db_updater(since_date: Optional[str] = None) -> str:
     env = os.environ.copy()
     env["MONDAY_API_KEY"] = monday_key
     env["DATABASE_URL"]   = db_url
+    # Pass Google auth settings through to the updater (service account + optional impersonation)
+    for k in ("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_IMPERSONATE_USER"):
+        v = os.getenv(k) or st.secrets.get(k, "")
+        if v:
+            env[k] = v
 
     result = subprocess.run(
         cmd, capture_output=True, text=True, env=env, cwd=str(mdb_dir),
@@ -188,6 +193,11 @@ def main():
                 try:
                     from db_updater import retry_blocked  # lazy import — avoid slow startup
                     monday_key = os.getenv("MONDAY_API_KEY") or st.secrets.get("MONDAY_API_KEY", "")
+                    # Ensure retry_blocked sees Google settings (it reads from env)
+                    for k in ("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_IMPERSONATE_USER"):
+                        v = os.getenv(k) or st.secrets.get(k, "")
+                        if v:
+                            os.environ[k] = v
                     summary = retry_blocked(conn, monday_key=monday_key)
                     st.success("Done")
                     st.text_area("Result", summary, height=250)
