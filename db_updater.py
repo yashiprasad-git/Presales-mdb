@@ -32,6 +32,7 @@ from mdb_core import (
     fetch_board_items,
     fetch_item_media_url,
     find_context_tab,
+    format_access_context_status,
     get_db,
     init_schema,
     load_config,
@@ -61,6 +62,16 @@ def _last_run_since(conn) -> str:
     except Exception:
         pass
     return FIRST_RUN_SINCE
+
+
+def _region_has_any_campaigns(conn, region: str) -> bool:
+    """Used to auto-backfill a region once (prevents permanent gaps after bugfixes)."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM campaigns WHERE region = %s LIMIT 1", (region,))
+            return cur.fetchone() is not None
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -158,9 +169,15 @@ def retry_blocked(conn, monday_key: str = "") -> str:
         except PermissionError as e:
             reason = str(e)
             _upsert_blocked(conn, run_id, item_id, int(board_id or 0), meta, reason)
-            _update_context_status(conn, item_id,
-                "❌ Access blocked – fix: Share → Anyone with the link → Viewer")
+            _update_context_status(conn, item_id, format_access_context_status(reason))
             lines.append(f"  ❌ {name} — still access blocked")
+            ctx_fail += 1
+            continue
+        except ValueError as e:
+            reason = str(e)
+            _upsert_blocked(conn, run_id, item_id, int(board_id or 0), meta, reason)
+            _update_context_status(conn, item_id, format_access_context_status(reason))
+            lines.append(f"  ❌ {name} — {reason}")
             ctx_fail += 1
             continue
         except Exception as e:
@@ -240,7 +257,7 @@ def main() -> None:
 
     run_id     = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     since_str  = args.since or _last_run_since(conn)
-    since_dt   = datetime.datetime.strptime(since_str, "%Y-%m-%d")
+    since_dt_default = datetime.datetime.strptime(since_str, "%Y-%m-%d")
     started_at = utc_now_iso()
 
     _log_run_start(conn, run_id, started_at)
@@ -261,6 +278,17 @@ def main() -> None:
         region   = board["region"]
         board_id = board["board_id"]
         print(f"\n   Board: {region}")
+
+        # If a region has never been ingested, do a one-time backfill from FIRST_RUN_SINCE.
+        # This prevents permanent gaps when earlier runs had a bug (e.g., using created_at).
+        since_dt = since_dt_default
+        if not args.since:
+            try:
+                if not _region_has_any_campaigns(conn, region):
+                    since_dt = datetime.datetime.strptime(FIRST_RUN_SINCE, "%Y-%m-%d")
+                    print(f"   (Auto-backfill) No existing campaigns for {region}; using since: {FIRST_RUN_SINCE}")
+            except Exception:
+                pass
 
         try:
             items = fetch_board_items(monday_key, board_id)
@@ -378,8 +406,14 @@ def main() -> None:
             reason = str(e)
             print(f"   BLOCKED: {reason}")
             _upsert_blocked(conn, run_id, item_id, int(board_id or 0), meta, reason)
-            _update_context_status(conn, item_id,
-                "❌ Access blocked – fix: Share → Anyone with the link → Viewer")
+            _update_context_status(conn, item_id, format_access_context_status(reason))
+            ctx_blocked += 1
+            continue
+        except ValueError as e:
+            reason = str(e)
+            print(f"   INVALID URL: {reason}")
+            _upsert_blocked(conn, run_id, item_id, int(board_id or 0), meta, reason)
+            _update_context_status(conn, item_id, format_access_context_status(reason))
             ctx_blocked += 1
             continue
         except Exception as e:

@@ -304,6 +304,11 @@ def main():
             KNOWN_FAILURE_LABELS = {
                 "media plan link not set": "❌ Media plan missing",
                 "access blocked":          "❌ Access blocked",
+                "domain-only":             "❌ Domain-only / sign-in required",
+                "sign-in page":            "❌ Domain-only / sign-in required",
+                "service account":         "❌ Service account access",
+                "non-google":              "❌ Not a Google link",
+                "sharepoint":              "❌ Not a Google link",
                 "context list not in standard format": "❌ Context list not in standard format",
                 "context tab found but":   "❌ Context list not in standard format",
                 "context tab not found":   "❌ Context tab not found",
@@ -366,9 +371,11 @@ def main():
             st.write(f"Showing **{len(filt)}** / {len(df_ctx)} campaigns")
 
             if stat in ("❌ Access blocked", "❌ All Failed") and len(filt) > 0:
-                st.caption("Fix blocked media plans: ask the file owner to set "
-                           "**Share → Anyone with the link → Viewer** in Google Drive, "
-                           "then re-run the DB updater.")
+                st.caption(
+                    "If access fails: **Anyone in org** is not enough for automated download (no Google login). "
+                    "Use **Anyone with the link → Viewer** (internet), or share the file with the "
+                    "**service account** email, then re-run the DB updater."
+                )
 
             col_cfg = {}
             if "monday_url" in filt.columns:

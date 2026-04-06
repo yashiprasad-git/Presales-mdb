@@ -12,6 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 import pandas as pd
 import requests
@@ -453,8 +454,94 @@ def should_include(col_values: Dict[str, str], board: Dict) -> bool:
 # ---------------------------------------------------------------------------
 
 def extract_sheet_id(url: str) -> Optional[str]:
-    m = re.search(r"/(?:spreadsheets|file)/d/([a-zA-Z0-9_-]+)", url or "")
+    """
+    Google file id for Sheets/Drive URLs.
+
+    Supports:
+    - Standard: .../spreadsheets/d/1AbC.../ or .../file/d/1AbC.../
+    - Published to web: .../spreadsheets/d/e/2PACX-1v.../  (full key is ``e/2PACX-...``)
+    """
+    if not url or not str(url).strip():
+        return None
+    u = str(url).strip()
+    # Published document (id contains a slash — must match before the short /d/ID/ pattern)
+    m_pub = re.search(r"/spreadsheets/d/(e/2PACX-[^/?#\s]+)", u, re.I)
+    if m_pub:
+        return m_pub.group(1).strip()
+    m = re.search(r"/(?:spreadsheets|file)/d/([a-zA-Z0-9_-]+)", u)
     return m.group(1) if m else None
+
+
+def _sheet_path_segment(sheet_id: str) -> str:
+    """Encode ids like e/2PACX-... for use in URL paths."""
+    return quote(sheet_id, safe="") if "/" in (sheet_id or "") else (sheet_id or "")
+
+
+_NON_GOOGLE_MEDIA_HINTS = (
+    "sharepoint.com",
+    "sharepoint.us",
+    "1drv.ms",
+    "onedrive.live.com",
+    "onedrive.com",
+    "excel.office.com",
+    "office.com",
+)
+
+
+def is_non_google_media_url(url: str) -> bool:
+    """True if the link is clearly not Google Sheets/Drive (e.g. SharePoint, OneDrive)."""
+    u = (url or "").strip().lower()
+    if not u:
+        return False
+    if "docs.google.com" in u or "drive.google.com" in u:
+        return False
+    return any(h in u for h in _NON_GOOGLE_MEDIA_HINTS)
+
+
+def format_access_context_status(reason: str, max_len: int = 280) -> str:
+    """
+    Turn PermissionError / ValueError text from media plan fetch into one dashboard line.
+    Explains why a human can open a file in a browser while this job still fails.
+    """
+    r = (reason or "").strip()
+    low = r.lower()
+    if "not a valid google" in low or "not google" in low:
+        return (
+            "❌ Media plan must be a **Google Sheets or Google Drive** link. "
+            "SharePoint / Excel Online URLs are not supported — upload to Drive or paste a docs.google.com link."
+        )
+    if any(x in low for x in ("sharepoint", "onedrive", "1drv", "excel.office")):
+        return (
+            "❌ Non-Google link detected. Use a **docs.google.com** or **drive.google.com** URL "
+            "(or add the Google file to the service account)."
+        )
+    if "service account could not download" in low:
+        return (
+            "❌ Service account could not open the file — share it with the **service account email** "
+            "(or fix domain-wide delegation), then retry."
+        )
+    if "anyone in your organisation" in low or "anyone in your organization" in low:
+        return (
+            "❌ Link is **domain-only** (opens after Google sign-in). This job has **no browser login**, "
+            "so it cannot fetch the sheet. Fix: share with the **service account**, or set "
+            "**Anyone with the link → Viewer** (internet), then retry."
+        )
+    if "login page" in low or "sign-in page" in low:
+        return (
+            "❌ Google returned a **sign-in page** (not public to anonymous download). "
+            "Use **service account** access or **Anyone with the link → Viewer**."
+        )
+    if "403" in low or "permission denied" in low:
+        return (
+            "❌ Permission denied (403). Share the file with the **service account** or loosen link access; "
+            "**Anyone in org** is not enough for automated download without SA."
+        )
+    if "401" in low:
+        return (
+            "❌ Not authorized (401). Same as sign-in required — use **service account** or a truly public link."
+        )
+    msg = r if r.startswith("❌") else f"❌ Access: {r}"
+    return msg if len(msg) <= max_len else msg[: max_len - 3] + "..."
 
 
 def _is_binary_excel(content_type: str, content: bytes) -> bool:
@@ -548,10 +635,11 @@ def _download_sheet_with_service_account(sheet_id: str, creds: Any) -> Optional[
     """Download spreadsheet as .xlsx bytes using OAuth Bearer (service account)."""
     token = creds.token
     headers = {"Authorization": f"Bearer {token}"}
+    path_seg = _sheet_path_segment(sheet_id)
 
     # 1) Google Sheets host export (works for native Sheets)
     r = requests.get(
-        f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx",
+        f"https://docs.google.com/spreadsheets/d/{path_seg}/export?format=xlsx",
         headers=headers,
         timeout=90,
     )
@@ -561,7 +649,7 @@ def _download_sheet_with_service_account(sheet_id: str, creds: Any) -> Optional[
 
     # 2) Drive API export → xlsx (Google Sheets file in Drive)
     r2 = requests.get(
-        f"https://www.googleapis.com/drive/v3/files/{sheet_id}/export",
+        f"https://www.googleapis.com/drive/v3/files/{path_seg}/export",
         params={
             "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         },
@@ -574,7 +662,7 @@ def _download_sheet_with_service_account(sheet_id: str, creds: Any) -> Optional[
 
     # 3) Binary .xlsx uploaded to Drive (not a native Google Sheet)
     r3 = requests.get(
-        f"https://www.googleapis.com/drive/v3/files/{sheet_id}",
+        f"https://www.googleapis.com/drive/v3/files/{path_seg}",
         params={"alt": "media"},
         headers=headers,
         timeout=90,
@@ -592,8 +680,11 @@ def _download_sheet_with_service_account(sheet_id: str, creds: Any) -> Optional[
 
 
 def _drive_download(session: Any, file_id: str) -> Optional[bytes]:
-    url  = f"https://drive.google.com/uc?export=download&id={file_id}"
-    resp = session.get(url, timeout=60)
+    resp = session.get(
+        "https://drive.google.com/uc",
+        params={"export": "download", "id": file_id},
+        timeout=60,
+    )
     ct   = resp.headers.get("content-type", "")
     if resp.status_code == 200 and _is_binary_excel(ct, resp.content):
         return resp.content
@@ -603,9 +694,19 @@ def _drive_download(session: Any, file_id: str) -> Optional[bytes]:
              re.search(r'"downloadUrl":"([^"]+)"', resp.text))
         if m:
             token = m.group(1)
-            url2  = token if token.startswith("http") else \
-                    f"https://drive.google.com/uc?export=download&id={file_id}&confirm={token}"
-            resp2 = session.get(url2, timeout=90)
+            if token.startswith("http"):
+                url2 = token
+                resp2 = session.get(url2, timeout=90)
+            else:
+                resp2 = session.get(
+                    "https://drive.google.com/uc",
+                    params={
+                        "export": "download",
+                        "id": file_id,
+                        "confirm": token,
+                    },
+                    timeout=90,
+                )
             ct2   = resp2.headers.get("content-type", "")
             if resp2.status_code == 200 and _is_binary_excel(ct2, resp2.content):
                 return resp2.content
@@ -621,6 +722,12 @@ def read_public_sheet(url: str) -> Any:
 
     Otherwise uses unauthenticated download (Anyone-with-the-link).
     """
+    if is_non_google_media_url(url):
+        raise ValueError(
+            "Media plan URL is not Google Sheets/Drive (e.g. SharePoint/OneDrive). "
+            "Use a docs.google.com or drive.google.com link, or place the file in Google Drive."
+        )
+
     sheet_id = extract_sheet_id(url)
     if not sheet_id:
         raise ValueError(f"Not a valid Google Sheets / Drive URL: {url}")
@@ -632,22 +739,25 @@ def read_public_sheet(url: str) -> Any:
 
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0"})
+    path_seg = _sheet_path_segment(sheet_id)
 
     last_status = None
     last_ct     = ""
 
-    # Strategy 1: native Sheets export
-    try:
-        resp = session.get(
-            f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx",
-            timeout=30,
-        )
-        last_status = resp.status_code
-        last_ct     = resp.headers.get("content-type", "")
-        if last_status == 200 and _is_binary_excel(last_ct, resp.content):
-            return pd.ExcelFile(io.BytesIO(resp.content))
-    except Exception:
-        pass
+    # Strategy 1: native Sheets export (try default sheet, then gid=0)
+    export_urls = (
+        f"https://docs.google.com/spreadsheets/d/{path_seg}/export?format=xlsx",
+        f"https://docs.google.com/spreadsheets/d/{path_seg}/export?format=xlsx&gid=0",
+    )
+    for exp_url in export_urls:
+        try:
+            resp = session.get(exp_url, timeout=45)
+            last_status = resp.status_code
+            last_ct     = resp.headers.get("content-type", "")
+            if last_status == 200 and _is_binary_excel(last_ct, resp.content):
+                return pd.ExcelFile(io.BytesIO(resp.content))
+        except Exception:
+            pass
 
     # Strategy 2: Drive direct download (for .xlsx files stored in Drive)
     content = _drive_download(session, sheet_id)
@@ -673,7 +783,11 @@ def read_public_sheet(url: str) -> Any:
             "'Anyone with the link → Viewer', not 'Anyone in organisation'"
         )
     else:
-        reason = "Could not download sheet — ensure it is shared as 'Anyone with the link → Viewer'"
+        reason = (
+            "Could not download sheet as XLSX — needs **Anyone with the link → Viewer** "
+            "(internet) or **service account** access. Note: **Anyone in org** is not enough "
+            "for this automated job (no Google login)."
+        )
 
     raise PermissionError(reason)
 
