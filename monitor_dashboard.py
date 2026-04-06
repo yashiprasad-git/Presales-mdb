@@ -47,6 +47,17 @@ def _get_db_url() -> str:
     return url or ""
 
 
+def _impersonate_hint() -> str:
+    """Email shown in access-issue help text (same as pipeline GOOGLE_IMPERSONATE_USER)."""
+    v = os.getenv("GOOGLE_IMPERSONATE_USER", "").strip()
+    if v:
+        return v
+    try:
+        return (st.secrets.get("GOOGLE_IMPERSONATE_USER", "") or "").strip()
+    except Exception:
+        return ""
+
+
 def get_conn():
     return psycopg2.connect(_get_db_url())
 
@@ -304,9 +315,10 @@ def main():
             KNOWN_FAILURE_LABELS = {
                 "media plan link not set": "❌ Media plan missing",
                 "access blocked":          "❌ Access blocked",
+                "access issue":            "❌ Access issue",
                 "domain-only":             "❌ Domain-only / sign-in required",
                 "sign-in page":            "❌ Domain-only / sign-in required",
-                "service account":         "❌ Service account access",
+                "service account":         "❌ Access issue",
                 "non-google":              "❌ Not a Google link",
                 "sharepoint":              "❌ Not a Google link",
                 "context list not in standard format": "❌ Context list not in standard format",
@@ -370,12 +382,18 @@ def main():
 
             st.write(f"Showing **{len(filt)}** / {len(df_ctx)} campaigns")
 
-            if stat in ("❌ Access blocked", "❌ All Failed") and len(filt) > 0:
-                st.caption(
-                    "If access fails: **Anyone in org** is not enough for automated download (no Google login). "
-                    "Use **Anyone with the link → Viewer** (internet), or share the file with the "
-                    "**service account** email, then re-run the DB updater."
-                )
+            if stat in ("❌ Access blocked", "❌ Access issue", "❌ All Failed") and len(filt) > 0:
+                _imp = _impersonate_hint()
+                if _imp:
+                    st.caption(
+                        f"**Access issue:** grant **View** on the media plan to **{_imp}**, "
+                        "then **Retry** or **Run DB Update**."
+                    )
+                else:
+                    st.caption(
+                        "Set **GOOGLE_IMPERSONATE_USER** in Streamlit secrets and grant that account "
+                        "**View** on the file, then **Retry**."
+                    )
 
             col_cfg = {}
             if "monday_url" in filt.columns:

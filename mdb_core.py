@@ -501,8 +501,14 @@ def is_non_google_media_url(url: str) -> bool:
 def format_access_context_status(reason: str, max_len: int = 280) -> str:
     """
     Turn PermissionError / ValueError text from media plan fetch into one dashboard line.
-    Explains why a human can open a file in a browser while this job still fails.
+    Access failures: ask Presales to grant the impersonated Google user access to the file.
     """
+    imp = _get_impersonate_user().strip()
+    who = imp if imp else "the impersonate account (set GOOGLE_IMPERSONATE_USER in secrets)"
+
+    def _access_issue() -> str:
+        return f"❌ Access issue — Provide access to {who}"
+
     r = (reason or "").strip()
     low = r.lower()
     if "not a valid google" in low or "not google" in low:
@@ -512,36 +518,20 @@ def format_access_context_status(reason: str, max_len: int = 280) -> str:
         )
     if any(x in low for x in ("sharepoint", "onedrive", "1drv", "excel.office")):
         return (
-            "❌ Non-Google link detected. Use a **docs.google.com** or **drive.google.com** URL "
-            "(or add the Google file to the service account)."
+            "❌ Non-Google link — use a **docs.google.com** or **drive.google.com** URL."
         )
     if "service account could not download" in low:
-        return (
-            "❌ Service account could not open the file — share it with the **service account email** "
-            "(or fix domain-wide delegation), then retry."
-        )
+        return _access_issue()
     if "anyone in your organisation" in low or "anyone in your organization" in low:
-        return (
-            "❌ Link is **domain-only** (opens after Google sign-in). This job has **no browser login**, "
-            "so it cannot fetch the sheet. Fix: share with the **service account**, or set "
-            "**Anyone with the link → Viewer** (internet), then retry."
-        )
+        return _access_issue()
     if "login page" in low or "sign-in page" in low:
-        return (
-            "❌ Google returned a **sign-in page** (not public to anonymous download). "
-            "Use **service account** access or **Anyone with the link → Viewer**."
-        )
+        return _access_issue()
     if "403" in low or "permission denied" in low:
-        return (
-            "❌ Permission denied (403). Share the file with the **service account** or loosen link access; "
-            "**Anyone in org** is not enough for automated download without SA."
-        )
+        return _access_issue()
     if "401" in low:
-        return (
-            "❌ Not authorized (401). Same as sign-in required — use **service account** or a truly public link."
-        )
-    msg = r if r.startswith("❌") else f"❌ Access: {r}"
-    return msg if len(msg) <= max_len else msg[: max_len - 3] + "..."
+        return _access_issue()
+    # Any other download / permission failure → same instruction for owners
+    return _access_issue()
 
 
 def _is_binary_excel(content_type: str, content: bytes) -> bool:
@@ -784,9 +774,8 @@ def read_public_sheet(url: str) -> Any:
         )
     else:
         reason = (
-            "Could not download sheet as XLSX — needs **Anyone with the link → Viewer** "
-            "(internet) or **service account** access. Note: **Anyone in org** is not enough "
-            "for this automated job (no Google login)."
+            "Could not download sheet as XLSX — limited sharing blocks automated download; "
+            "grant access to the impersonate user or use a link that allows export."
         )
 
     raise PermissionError(reason)
