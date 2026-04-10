@@ -91,6 +91,7 @@ def _get_campaigns_needing_validation(conn) -> List[Dict]:
             INNER JOIN context_rows cr ON cr.monday_item_id = c.monday_item_id
             LEFT  JOIN validation_results vr ON vr.monday_item_id = c.monday_item_id
             WHERE vr.monday_item_id IS NULL
+               OR vr.error_log LIKE '%non-standard format%'
             ORDER BY c.monday_item_id
         """)
         return [dict(r) for r in cur.fetchall()]
@@ -313,7 +314,16 @@ def run_validation(conn, openai_api_key: str = "", anthropic_api_key: str = "") 
             context_list = _reconstruct_context_list(conn, item_id)
             if not context_list["tactics"]:
                 skipped += 1
-                lines.append(f"  ⏭  Skipped (no tactics): {name}")
+                lines.append(f"  ❌ {name}  →  No tactics found in context rows (non-standard format)")
+                _save_validation_result(conn, item_id, campaign, {
+                    "overall_status":         "FAIL_MAJOR",
+                    "training_label":         "DO_NOT_STORE",
+                    "store_in_training_db":   False,
+                    "errors_count":           1,
+                    "warnings_count":         0,
+                    "recommendations_count":  0,
+                    "validated_at":           datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                }, error="Context rows exist but contain no tactic data — context list is not in standard format.")
                 continue
 
             result = _call_ai_validator(
@@ -343,7 +353,7 @@ def run_validation(conn, openai_api_key: str = "", anthropic_api_key: str = "") 
                 pass
 
     lines.append(
-        f"\nDone — validated: {validated}, errors: {errors}, skipped: {skipped}"
+        f"\nDone — validated: {validated}, non-standard format: {skipped}, errors: {errors}"
     )
     return "\n".join(lines)
 
