@@ -91,10 +91,58 @@ def _get_campaigns_needing_validation(conn) -> List[Dict]:
             INNER JOIN context_rows cr ON cr.monday_item_id = c.monday_item_id
             LEFT  JOIN validation_results vr ON vr.monday_item_id = c.monday_item_id
             WHERE vr.monday_item_id IS NULL
-               OR vr.error_log LIKE '%non-standard format%'
             ORDER BY c.monday_item_id
         """)
         return [dict(r) for r in cur.fetchall()]
+
+
+def cleanup_invalid_context_rows(conn) -> List[str]:
+    """
+    Find campaigns where ALL context_rows have empty tactic_en (non-standard format).
+    For each:
+      - Delete the unusable context_rows
+      - Reset context_status to '❌ Context list not in standard format'
+      - Remove any stale validation_results entry
+    Returns a list of log lines describing what was cleaned up.
+    """
+    lines: List[str] = []
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT monday_item_id
+            FROM context_rows
+            WHERE monday_item_id NOT IN (
+                SELECT DISTINCT monday_item_id
+                FROM context_rows
+                WHERE tactic_en IS NOT NULL AND BTRIM(tactic_en) != ''
+            )
+        """)
+        bad_ids = [row[0] for row in cur.fetchall()]
+
+    if not bad_ids:
+        return lines
+
+    for item_id in bad_ids:
+        with conn.cursor() as cur:
+            # Delete the invalid context rows
+            cur.execute("DELETE FROM context_rows WHERE monday_item_id = %s", (item_id,))
+            deleted = cur.rowcount
+            # Correct the context_status on the campaign
+            cur.execute("""
+                UPDATE campaigns
+                SET context_status = '❌ Context list not in standard format',
+                    updated_at_utc = %s
+                WHERE monday_item_id = %s
+            """, (datetime.now(timezone.utc).isoformat(timespec="seconds"), item_id))
+            # Remove any stale validation result so it won't appear as validated
+            cur.execute("DELETE FROM validation_results WHERE monday_item_id = %s", (item_id,))
+        conn.commit()
+        lines.append(
+            f"  🧹 Cleaned up {deleted} invalid row(s) for campaign {item_id} "
+            f"→ status reset to '❌ Context list not in standard format'"
+        )
+
+    return lines
 
 
 def pending_validation_count(conn) -> int:
@@ -296,12 +344,21 @@ def run_validation(conn, openai_api_key: str = "", anthropic_api_key: str = "") 
     """
     init_validation_schema(conn)
 
+    # Step 0: clean up context rows missing tactic data and correct their status
+    cleanup_lines = cleanup_invalid_context_rows(conn)
+    lines: List[str] = []
+    if cleanup_lines:
+        lines.append("🧹 Cleaning up non-standard context rows...")
+        lines.extend(cleanup_lines)
+        lines.append("")
+
     campaigns = _get_campaigns_needing_validation(conn)
     if not campaigns:
-        return "Nothing to validate — all campaigns with context lists have already been validated."
+        lines.append("Nothing to validate — all campaigns with context lists have already been validated.")
+        return "\n".join(lines)
 
     provider = "OpenAI (gpt-4o)" if openai_api_key else "Anthropic (claude-sonnet-4-6)"
-    lines: List[str] = [f"Validating {len(campaigns)} campaign(s) using {provider}...\n"]
+    lines.append(f"Validating {len(campaigns)} campaign(s) using {provider}...\n")
     validated = 0
     errors = 0
     skipped = 0
@@ -313,17 +370,9 @@ def run_validation(conn, openai_api_key: str = "", anthropic_api_key: str = "") 
         try:
             context_list = _reconstruct_context_list(conn, item_id)
             if not context_list["tactics"]:
+                # Shouldn't happen after cleanup, but guard anyway
                 skipped += 1
-                lines.append(f"  ❌ {name}  →  No tactics found in context rows (non-standard format)")
-                _save_validation_result(conn, item_id, campaign, {
-                    "overall_status":         "FAIL_MAJOR",
-                    "training_label":         "DO_NOT_STORE",
-                    "store_in_training_db":   False,
-                    "errors_count":           1,
-                    "warnings_count":         0,
-                    "recommendations_count":  0,
-                    "validated_at":           datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                }, error="Context rows exist but contain no tactic data — context list is not in standard format.")
+                lines.append(f"  ⏭  Skipped (no tactics after cleanup): {name}")
                 continue
 
             result = _call_ai_validator(
