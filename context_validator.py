@@ -23,6 +23,11 @@ try:
 except ImportError:
     _OpenAI = None  # type: ignore
 
+try:
+    import anthropic as _anthropic
+except ImportError:
+    _anthropic = None  # type: ignore
+
 MDB_DIR = Path(__file__).resolve().parent
 SYSTEM_PROMPT_PATH = MDB_DIR / "context_list_validation_system_prompt.md"
 
@@ -156,7 +161,7 @@ def _reconstruct_context_list(conn, item_id: str) -> Dict:
 
 
 # ---------------------------------------------------------------------------
-# OpenAI call
+# AI call (supports OpenAI gpt-4o and Anthropic claude-sonnet)
 # ---------------------------------------------------------------------------
 
 def _load_system_prompt() -> str:
@@ -168,39 +173,63 @@ def _load_system_prompt() -> str:
     return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def _call_openai_validator(campaign: Dict, context_list: Dict, openai_api_key: str) -> Dict:
-    if _OpenAI is None:
-        raise RuntimeError("openai package not installed. Run: pip install openai")
-
-    system_prompt = _load_system_prompt()
-    client = _OpenAI(api_key=openai_api_key)
-
+def _build_inputs(campaign: Dict, context_list: Dict):
     campaign_input = {
-        "brand":           campaign.get("brand_name") or "",
-        "geo":             campaign.get("country")    or "",
-        "vertical":        campaign.get("vertical")   or "",
-        "target_audience": campaign.get("targeting")  or "",
-        "campaign_brief":  campaign.get("rfp_summary") or "",
+        "brand":           campaign.get("brand_name")       or "",
+        "geo":             campaign.get("country")          or "",
+        "vertical":        campaign.get("vertical")         or "",
+        "target_audience": campaign.get("targeting")        or "",
+        "campaign_brief":  campaign.get("rfp_summary")      or "",
         "budget":          "",
         "age_group":       campaign.get("any_other_details") or "",
         "dma_targeting":   False,
     }
-
     user_message = json.dumps(
         {"campaign_input": campaign_input, "context_list": context_list},
         ensure_ascii=False,
     )
+    return user_message
 
+
+def _call_openai_validator(campaign: Dict, context_list: Dict, api_key: str) -> Dict:
+    if _OpenAI is None:
+        raise RuntimeError("openai package not installed. Run: pip install openai")
+    system_prompt = _load_system_prompt()
+    client = _OpenAI(api_key=api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_message},
+            {"role": "user",   "content": _build_inputs(campaign, context_list)},
         ],
         response_format={"type": "json_object"},
     )
-
     return json.loads(response.choices[0].message.content)
+
+
+def _call_anthropic_validator(campaign: Dict, context_list: Dict, api_key: str) -> Dict:
+    if _anthropic is None:
+        raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
+    system_prompt = _load_system_prompt()
+    client = _anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        system=system_prompt,
+        messages=[
+            {"role": "user", "content": _build_inputs(campaign, context_list)},
+        ],
+    )
+    return json.loads(message.content[0].text)
+
+
+def _call_ai_validator(campaign: Dict, context_list: Dict, openai_api_key: str = "", anthropic_api_key: str = "") -> Dict:
+    """Call whichever AI provider has a key configured. OpenAI takes priority."""
+    if openai_api_key:
+        return _call_openai_validator(campaign, context_list, openai_api_key)
+    if anthropic_api_key:
+        return _call_anthropic_validator(campaign, context_list, anthropic_api_key)
+    raise RuntimeError("No AI API key configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY in Streamlit secrets.")
 
 
 # ---------------------------------------------------------------------------
@@ -258,9 +287,10 @@ def _save_validation_result(
 # Main runner
 # ---------------------------------------------------------------------------
 
-def run_validation(conn, openai_api_key: str) -> str:
+def run_validation(conn, openai_api_key: str = "", anthropic_api_key: str = "") -> str:
     """
     Validate all campaigns that have context rows but haven't been validated yet.
+    Uses OpenAI if OPENAI_API_KEY is set, otherwise falls back to Anthropic.
     Returns a human-readable summary string (for display in the dashboard).
     """
     init_validation_schema(conn)
@@ -269,7 +299,8 @@ def run_validation(conn, openai_api_key: str) -> str:
     if not campaigns:
         return "Nothing to validate — all campaigns with context lists have already been validated."
 
-    lines: List[str] = [f"Validating {len(campaigns)} campaign(s)...\n"]
+    provider = "OpenAI (gpt-4o)" if openai_api_key else "Anthropic (claude-sonnet-4-6)"
+    lines: List[str] = [f"Validating {len(campaigns)} campaign(s) using {provider}...\n"]
     validated = 0
     errors = 0
     skipped = 0
@@ -285,7 +316,11 @@ def run_validation(conn, openai_api_key: str) -> str:
                 lines.append(f"  ⏭  Skipped (no tactics): {name}")
                 continue
 
-            result = _call_openai_validator(campaign, context_list, openai_api_key)
+            result = _call_ai_validator(
+                campaign, context_list,
+                openai_api_key=openai_api_key,
+                anthropic_api_key=anthropic_api_key,
+            )
             _save_validation_result(conn, item_id, campaign, result)
             validated += 1
 
