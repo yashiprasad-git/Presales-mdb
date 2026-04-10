@@ -174,6 +174,22 @@ def run_db_updater(since_date: Optional[str] = None) -> str:
 # UI
 # ---------------------------------------------------------------------------
 
+def _run_validation_step(conn) -> str:
+    """Run validation inline after DB update or retry. Returns log string or empty string."""
+    try:
+        openai_key = st.secrets["OPENAI_API_KEY"]
+    except (KeyError, Exception):
+        openai_key = ""
+    if not openai_key:
+        return "⚠️ Validation skipped — OPENAI_API_KEY not set in Streamlit secrets."
+    try:
+        from context_validator import run_validation, init_validation_schema
+        init_validation_schema(conn)
+        return run_validation(conn, openai_api_key=openai_key)
+    except Exception as e:
+        return f"⚠️ Validation error: {e}"
+
+
 def main():
     st.title("🗄️ MDB Update Dashboard")
     st.caption("Monitors daily DB updates (Monday.com → PostgreSQL). "
@@ -183,8 +199,6 @@ def main():
     st.session_state.setdefault("last_db_update_output", "")
     st.session_state.setdefault("last_retry_output", "")
     st.session_state.setdefault("last_error", "")
-    st.session_state.setdefault("last_validation_output", "")
-    st.session_state.setdefault("last_validation_error", "")
 
     # ── Sidebar — manual run ────────────────────────────────────────────
     with st.sidebar:
@@ -218,45 +232,63 @@ def main():
                 last_date = dt.strftime("%d-%b-%Y %H:%M").lower() + (" IST" if ist is not None else "")
             except Exception:
                 pass
-            st.caption(f"Manually update the MDB since last run.  \n**Last successful run (IST):** {last_date}")
+            st.caption(
+                f"Fetches new campaigns from Monday.com, extracts context lists, "
+                f"and validates ✅ campaigns automatically.  \n"
+                f"**Last successful run (IST):** {last_date}"
+            )
         else:
-            st.caption("Manually update the MDB since last run.  \n**Last successful run (IST):** none yet")
+            st.caption(
+                "Fetches new campaigns from Monday.com, extracts context lists, "
+                "and validates ✅ campaigns automatically.  \n"
+                "**Last successful run (IST):** none yet"
+            )
         if st.button("▶ Run DB Update Now", use_container_width=True, type="primary"):
-            with st.spinner("Running DB update…"):
+            with st.spinner("Fetching from Monday.com + extracting context lists…"):
                 output = run_db_updater(None)
-            st.session_state["last_db_update_output"] = output
+            with st.spinner("Running validation on ✅ campaigns…"):
+                val_out = _run_validation_step(conn)
+            combined = output + ("\n\n--- VALIDATION ---\n" + val_out if val_out else "")
+            st.session_state["last_db_update_output"] = combined
             st.session_state["last_error"] = ""
-            st.success("Run complete")
+            st.success("Done")
 
         if st.session_state.get("last_db_update_output"):
-            with st.expander("📄 View last DB update logs", expanded=False):
+            with st.expander("📄 View last run logs", expanded=False):
                 st.text_area(
-                    "Last DB Update Output",
+                    "Last Run Output",
                     st.session_state["last_db_update_output"],
                     height=300,
                 )
 
         st.divider()
         st.subheader("🔄 Retry Failed Campaigns")
-        st.caption("Re-attempts media plan reading for all ❌ campaigns.")
+        st.caption(
+            "Re-attempts media plan reading for all ❌ campaigns, "
+            "then validates any newly recovered ✅ context lists."
+        )
         if st.button("🔄 Retry Now", use_container_width=True):
             with st.spinner("Re-attempting blocked/failed media plans…"):
                 try:
-                    from db_updater import retry_blocked  # lazy import — avoid slow startup
+                    from db_updater import retry_blocked
                     monday_key = os.getenv("MONDAY_API_KEY") or st.secrets.get("MONDAY_API_KEY", "")
-                    # Ensure retry_blocked sees Google settings (it reads from env)
                     for k in ("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_IMPERSONATE_USER"):
                         v = os.getenv(k) or st.secrets.get(k, "")
                         if v:
                             os.environ[k] = v
                     summary = retry_blocked(conn, monday_key=monday_key)
-                    st.session_state["last_retry_output"] = summary
                     st.session_state["last_error"] = ""
-                    st.success("Done (result saved below)")
                 except Exception as e:
                     st.session_state["last_error"] = str(e)
                     st.session_state["last_retry_output"] = ""
                     st.error(f"Error: {e}")
+                    summary = ""
+            if summary:
+                with st.spinner("Running validation on ✅ campaigns…"):
+                    val_out = _run_validation_step(conn)
+                combined = summary + ("\n\n--- VALIDATION ---\n" + val_out if val_out else "")
+                st.session_state["last_retry_output"] = combined
+                st.success("Done")
 
         if st.session_state.get("last_error") or st.session_state.get("last_retry_output"):
             with st.expander("📄 View last retry logs", expanded=False):
@@ -264,47 +296,6 @@ def main():
                     st.text_area("Last Error", st.session_state["last_error"], height=140)
                 if st.session_state.get("last_retry_output"):
                     st.text_area("Last Retry Result", st.session_state["last_retry_output"], height=250)
-
-        st.divider()
-        st.subheader("🧪 Validate Context Lists")
-        st.caption("Validates context lists against the AI quality rules (gpt-4o).")
-
-        try:
-            from context_validator import pending_validation_count, init_validation_schema
-            init_validation_schema(conn)
-            pending_val = pending_validation_count(conn)
-        except Exception:
-            pending_val = None
-
-        if pending_val is not None:
-            st.caption(f"**Pending validation:** {pending_val} campaign(s)")
-
-        if st.button("🧪 Run Validation Now", use_container_width=True):
-            try:
-                openai_key = st.secrets["OPENAI_API_KEY"]
-            except (KeyError, Exception):
-                openai_key = ""
-            if not openai_key:
-                st.error("OPENAI_API_KEY not set in Streamlit secrets.")
-            else:
-                with st.spinner("Validating context lists…"):
-                    try:
-                        from context_validator import run_validation
-                        summary = run_validation(conn, openai_api_key=openai_key)
-                        st.session_state["last_validation_output"] = summary
-                        st.session_state["last_validation_error"] = ""
-                        st.success("Validation complete")
-                    except Exception as e:
-                        st.session_state["last_validation_error"] = str(e)
-                        st.session_state["last_validation_output"] = ""
-                        st.error(f"Error: {e}")
-
-        if st.session_state.get("last_validation_output") or st.session_state.get("last_validation_error"):
-            with st.expander("📄 View last validation logs", expanded=False):
-                if st.session_state.get("last_validation_error"):
-                    st.text_area("Last Error", st.session_state["last_validation_error"], height=140)
-                if st.session_state.get("last_validation_output"):
-                    st.text_area("Last Validation Result", st.session_state["last_validation_output"], height=300)
 
         st.divider()
         st.caption("Analysis dashboard → [Open](https://silverpush-presales-dashboard.streamlit.app)")
