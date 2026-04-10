@@ -1,0 +1,286 @@
+{
+  "system_name": "Context List Validation Engine",
+  "version": "2.0",
+  "description": "Instruction set for validating YouTube Mirror campaign context lists across three quality dimensions",
+
+  "input_schema": {
+    "campaign_input": {
+      "brand": "string",
+      "geo": "string",
+      "vertical": "string",
+      "target_audience": "string",
+      "campaign_brief": "string",
+      "budget": "string (optional)",
+      "age_group": "string (optional)",
+      "dma_targeting": "boolean (optional)"
+    },
+    "context_list": {
+      "exclusions": [
+        { "category": "string", "keywords": ["string"] }
+      ],
+      "tactics": [
+        {
+          "tactic_name": "string",
+          "sub_tactics": [
+            { "sub_tactic_name": "string", "signals": ["string"] }
+          ]
+        }
+      ]
+    }
+  },
+
+  "severity_definitions": {
+    "error": "Counts toward error threshold. Only 3 rules carry this severity — all in CHECK 2 (alignment issues).",
+    "warning": "Always highlighted in output. NEVER counted as error. NEVER affects training label. Informs human reviewer only.",
+    "recommendation": "Always shown. Informational only. CHECK 3 always produces recommendations, never errors.",
+    "info": "Lightweight awareness flag. No action required."
+  },
+
+  "training_label_logic": {
+    "description": "Determines how a validated context list is stored in Supabase training database",
+    "important_note": "Warnings are NEVER counted as errors. A list with 50 warnings and 0 errors is still PASS_WITH_WARNINGS and stored as POSITIVE_EXAMPLE. This is intentional — context lists have large signal volumes and warning counts will naturally be high.",
+    "rules": [
+      {
+        "condition": "errors == 0, warnings == 0",
+        "overall_status": "PASS",
+        "training_label": "POSITIVE_EXAMPLE",
+        "store_in_training_db": true
+      },
+      {
+        "condition": "errors == 0, warnings >= 1",
+        "overall_status": "PASS_WITH_WARNINGS",
+        "training_label": "POSITIVE_EXAMPLE",
+        "store_in_training_db": true,
+        "note": "Warnings highlighted so model learns what to watch for, but list is structurally sound"
+      },
+      {
+        "condition": "errors == 1",
+        "overall_status": "FAIL_MINOR",
+        "training_label": "NEGATIVE_EXAMPLE",
+        "store_in_training_db": true,
+        "note": "One specific alignment mistake with clear reasoning — valuable negative training example"
+      },
+      {
+        "condition": "errors >= 2",
+        "overall_status": "FAIL_MAJOR",
+        "training_label": "DO_NOT_STORE",
+        "store_in_training_db": false,
+        "note": "Too many fundamental issues — too noisy to be useful for training"
+      }
+    ]
+  },
+
+  "checks": [
+
+    {
+      "check_id": "CHECK_1",
+      "check_name": "Layout & Signal Quality Validation",
+      "description": "Signal hygiene checks. NO hard errors in this check. All rules are warnings or info — always highlighted but never block storage or affect training label.",
+      "note": "There is NO limit on number of Tactics or Sub-Tactics. These are not validated.",
+      "rules": [
+        {
+          "rule_id": "C1_R1",
+          "rule_name": "Signal Conciseness",
+          "description": "Signals longer than 3 words should always be flagged. Ideal signal length is 2-3 words.",
+          "validation": "WORD_COUNT(signal) > 3",
+          "severity": "warning",
+          "always_show": true,
+          "flag_message": "Signal '{signal}' under Sub-Tactic '{sub_tactic}' is longer than 3 words. Signals should be 2-3 words for precise YouTube contextual matching."
+        },
+        {
+          "rule_id": "C1_R2",
+          "rule_name": "Duplicate Signal Detection - Exact",
+          "description": "Identical signals appearing more than once across the entire context list. Always highlighted — never counted as error.",
+          "validation": "No two signals in the entire list are identical (case-insensitive)",
+          "severity": "warning",
+          "always_show": true,
+          "flag_message": "Duplicate signal found: '{signal}' appears more than once. Remove all but one instance."
+        },
+        {
+          "rule_id": "C1_R3",
+          "rule_name": "Duplicate Signal Detection - Proper Nouns",
+          "description": "For celebrities, brands, products, channels, teams — only the canonical full name should appear. Short forms, nicknames and name variations are all treated as duplicates of the canonical name.",
+          "validation": "For each proper noun entity, only one canonical signal referencing it should exist",
+          "severity": "warning",
+          "always_show": true,
+          "examples": {
+            "correct": ["Shah Rukh Khan", "Kylian Mbappe"],
+            "incorrect": {
+              "SRK_example": ["Shah Rukh Khan", "SRK", "King Khan"],
+              "Mbappe_example": ["Kylian Mbappe", "Mbappe Goals", "Mbappe Matches"]
+            }
+          },
+          "flag_message": "Proper noun duplicate detected. Keep only the canonical full name: '{canonical_signal}'. Remove variations: {duplicates}."
+        },
+        {
+          "rule_id": "C1_R4",
+          "rule_name": "Abbreviation Check",
+          "description": "Signals must not use standalone abbreviations with multiple possible meanings (e.g. CPA, RDJ, SRK, NRT, OTC)",
+          "validation": "Signal does not contain standalone abbreviations",
+          "severity": "warning",
+          "always_show": false,
+          "flag_message": "Signal '{signal}' uses an abbreviation. Use the full term to avoid ambiguity."
+        },
+        {
+          "rule_id": "C1_R5",
+          "rule_name": "Overly Generic Signal Check",
+          "description": "Single standalone generic words reduce targeting precision",
+          "validation": "Signal is not a standalone generic word with no targeting specificity",
+          "severity": "warning",
+          "always_show": false,
+          "examples": {
+            "incorrect": ["toys", "health", "cars"],
+            "correct": ["kids toys", "mental health tips", "electric cars"]
+          },
+          "flag_message": "Signal '{signal}' may be too generic. Consider a more specific 2-3 word phrase."
+        },
+        {
+          "rule_id": "C1_R6",
+          "rule_name": "Sub-Tactic 'All' Convention",
+          "description": "When no sub-categorisation is needed under a Tactic, Sub-Tactic should be labeled 'All'",
+          "validation": "If a Tactic has only one Sub-Tactic and it is not labeled 'All', flag for review",
+          "severity": "info",
+          "always_show": false,
+          "flag_message": "Tactic '{tactic_name}' has a single Sub-Tactic not labeled 'All'. If no sub-categorisation is needed, rename to 'All'."
+        },
+        {
+          "rule_id": "C1_R7",
+          "rule_name": "Exclusion Keyword Specificity",
+          "description": "Exclusion keywords should be contextual phrases, not single broad words",
+          "validation": "Exclusion keywords should not be single standalone words",
+          "severity": "warning",
+          "always_show": false,
+          "examples": {
+            "incorrect": ["gun", "drugs"],
+            "correct": ["gun violence", "illegal drug trade"]
+          },
+          "flag_message": "Exclusion keyword '{keyword}' is too broad. Use a contextual phrase to avoid over-blocking."
+        }
+      ]
+    },
+
+    {
+      "check_id": "CHECK_2",
+      "check_name": "Targeting & Brief Alignment",
+      "description": "THE ONLY CHECK THAT PRODUCES ERRORS. Three rules, all severity: error. Error count here directly determines training label.",
+      "rules": [
+        {
+          "rule_id": "C2_R1",
+          "rule_name": "Tactic-to-Brief Relevance",
+          "description": "Each Tactic must have a clear and explainable connection to the campaign brief, brand, vertical, geo and target audience. If no logical rationale can be constructed — it is an error.",
+          "validation": "For each Tactic: can a clear rationale be constructed linking it to the brand, vertical, geo and target audience?",
+          "severity": "error",
+          "flag_message": "Tactic '{tactic_name}' does not appear relevant to the campaign brief. Brief: '{brief_summary}'. Please justify or remove."
+        },
+        {
+          "rule_id": "C2_R2",
+          "rule_name": "Sub-Tactic-to-Tactic Coherence",
+          "description": "Each Sub-Tactic must be a logical sub-category of its parent Tactic — not a standalone or misplaced theme.",
+          "validation": "Sub-Tactic is semantically a subcategory of its parent Tactic",
+          "severity": "error",
+          "flag_message": "Sub-Tactic '{sub_tactic_name}' is not a logical sub-category of Tactic '{tactic_name}'. Review placement."
+        },
+        {
+          "rule_id": "C2_R3",
+          "rule_name": "Signal-to-Sub-Tactic Relevance",
+          "description": "Each Signal must be a specific keyword that would identify YouTube content relevant to its parent Sub-Tactic.",
+          "validation": "Each Signal identifies YouTube content that fits its parent Sub-Tactic context",
+          "severity": "error",
+          "flag_message": "Signal '{signal}' does not appear relevant to Sub-Tactic '{sub_tactic_name}'. Review or relocate."
+        }
+      ]
+    },
+
+    {
+      "check_id": "CHECK_3",
+      "check_name": "Thematic Alignment for Sensitive & Niche Campaigns",
+      "description": "ALWAYS produces recommendations — never errors. Checks if campaign is sensitive/niche and suggests broader thematic Tactics to improve delivery scale. Model uses this to learn what broader categories to add for such campaigns.",
+      "trigger_conditions": {
+        "description": "Activates when ANY of the following are true",
+        "conditions": [
+          "vertical is in the sensitive_verticals list",
+          "geo targeting is DMA-level or city/district level",
+          "age_group span is less than 15 years",
+          "budget is described as high or brief implies large-scale delivery",
+          "brief mentions a specific medicine, financial product, regulated substance, or niche product"
+        ]
+      },
+      "sensitive_verticals": [
+        "Healthcare and medicines", "Banking & Insurance", "Crypto", "Alcohol",
+        "Quit Smoking/Tobacco", "Baby Health (Parenting)", "Women Health",
+        "Betting & Gambling", "Construction/real estate", "Hair care",
+        "Drugs", "Government & NGOs", "Oil, Chemical & Natural Gas", "Pets & Animal"
+      ],
+      "rules": [
+        {
+          "rule_id": "C3_R1",
+          "rule_name": "Sensitive Vertical Detection",
+          "severity": "info",
+          "flag_message": "Vertical '{vertical}' is sensitive/regulated. Thematic alignment recommendations follow."
+        },
+        {
+          "rule_id": "C3_R2",
+          "rule_name": "Niche Targeting Detection",
+          "severity": "info",
+          "flag_message": "Niche targeting detected ({targeting_detail}). Broader Tactics recommended for delivery scale."
+        },
+        {
+          "rule_id": "C3_R3",
+          "rule_name": "Thematic Expansion Recommendation",
+          "description": "Recommend up to 3 Tactics/Sub-Tactics from playbook not already in the context list. Always a recommendation — never an error.",
+          "severity": "recommendation",
+          "always_show": true,
+          "instruction": "Look up vertical in playbook_data. Find subcategories NOT already in existing Tactics. Recommend up to 3 most relevant additions for this specific campaign audience.",
+          "flag_message": "Suggest adding broader themes for scale: {recommended_tactics}. Based on vertical playbook for '{vertical}'."
+        }
+      ],
+      "playbook_data": {
+        "Healthcare and medicines": ["General Health & Wellness", "Medical Conditions", "Mental Health", "Nutrition & Diet", "Fitness & Exercise", "Alternative & Traditional Medicine", "Public Health & Policy", "Skincare", "Healthcare Technology", "Parenting & Family Health", "Aging & Senior Health"],
+        "Banking & Insurance": ["Financial Literacy", "Credit Score & Reports", "Retail Banking", "Mutual Funds & SIPs", "Tax Planning", "Digital Banking & Fintech", "Personal Finance Tools & Apps", "Retirement & Pension", "Health Insurance", "Life Insurance"],
+        "Crypto": ["Crypto Investing", "Blockchain Technology", "DeFi (Decentralized Finance)", "Personal Finance & Investing", "Financial Freedom / FIRE Movement", "Side Hustles & Passive Income", "Global Economy & Inflation", "Fintech & Digital Payments"],
+        "Alcohol": ["Cocktails & Mixology", "Food Pairings", "Bars & Nightlife", "Luxury & Lifestyle", "Entertaining & Hosting", "Seasonal & Holiday Moments", "Trends & Innovations", "Health & Wellness", "Social Media Trends"],
+        "Quit Smoking/Tobacco": ["Smoking Cessation Tips", "Health Effects of Smoking", "Quit Smoking Motivation", "Mental Health & Stress", "Lung, Heart & Overall Health", "Core Fitness", "Nicotine Replacement Therapy", "Apps & Digital Tools for Quitting"],
+        "Baby Health (Parenting)": ["Newborn Care & Health", "Feeding & Nutrition", "Sleep & Routines", "Baby Growth & Development", "Parenting Tips & Lifestyle", "Maternal Health & Wellness", "Early Childhood Education & Play", "Baby Gear & Products"],
+        "Women Health": ["Menstruation & Period Care", "Pregnancy & Fertility", "Nutrition & Diet for Women", "Fitness & Exercise for Women", "Mental Health & Stress Management", "Skin & Beauty Health", "Holistic Wellness & Mindfulness", "Motherhood & Parenting Health"],
+        "Betting & Gambling": ["Sports Betting", "Fantasy Sports", "Betting Tips & Predictions", "Gaming Culture", "Responsible Gambling", "Esports Betting"],
+        "Drugs": ["Healthcare & Wellness", "Mental Health & Wellbeing", "Nutrition & Supplements", "Medical Conditions & Diseases", "Fitness & Lifestyle", "Patient Stories & Experiences", "Public Health & Awareness", "Alternative & Complementary Medicine"],
+        "Construction/real estate": ["Real Estate Listings", "Property Investment", "Interior Design & Home Decor", "Home Renovation & Improvement", "Smart Home & IoT", "Sustainable & Green Building", "Real Estate Market Trends", "Luxury Real Estate"],
+        "Pets & Animal": ["Pet Health & Wellness", "Pet Nutrition & Food", "Pet Training & Behavior", "Pet Lifestyle", "Pet Products & Accessories", "Funny Animals & Entertainment", "Wildlife & Nature", "Kids & Families"],
+        "Hair care": ["Hair Care Tips & Routines", "Hair Growth & Treatments", "Hair Products Reviews", "Scalp Care & Treatments", "Natural & Organic Hair Care", "Health & Wellness (Hair-focused)", "Beauty & Personal Care", "Fashion & Style"],
+        "Government & NGOs": ["Public Health Initiatives", "Social Development & Human Rights", "Education & Public Awareness Campaigns", "Civic Engagement & Activism", "Environmental & Climate Action", "Disaster Relief & Humanitarian Aid"],
+        "Oil, Chemical & Natural Gas": ["Renewable Energy Transition / Green Energy", "Environment & Sustainability", "Safety & Risk Management", "Technology & Innovation", "Market Trends", "Science & Technology"]
+      }
+    }
+  ],
+
+  "output_schema": {
+    "description": "Structured output stored in Supabase after each validation run",
+    "fields": {
+      "campaign_id": "string",
+      "validated_at": "ISO 8601 datetime",
+      "overall_status": "PASS | PASS_WITH_WARNINGS | FAIL_MINOR | FAIL_MAJOR",
+      "training_label": "POSITIVE_EXAMPLE | NEGATIVE_EXAMPLE | DO_NOT_STORE",
+      "store_in_training_db": "boolean",
+      "errors_count": "integer",
+      "warnings_count": "integer",
+      "recommendations_count": "integer",
+      "check_results": [
+        {
+          "check_id": "string",
+          "check_name": "string",
+          "status": "PASS | FAIL | WARNING | RECOMMENDATION",
+          "triggered_rules": [
+            {
+              "rule_id": "string",
+              "rule_name": "string",
+              "severity": "error | warning | info | recommendation",
+              "reasoning": "Specific explanation tied to this campaign — not a generic message. Always explain WHY referencing the actual brand, brief, audience.",
+              "affected_items": ["string"]
+            }
+          ]
+        }
+      ],
+      "full_validation_report": "Complete JSON stored as-is for model training reference"
+    }
+  }
+}

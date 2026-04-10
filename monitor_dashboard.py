@@ -183,6 +183,8 @@ def main():
     st.session_state.setdefault("last_db_update_output", "")
     st.session_state.setdefault("last_retry_output", "")
     st.session_state.setdefault("last_error", "")
+    st.session_state.setdefault("last_validation_output", "")
+    st.session_state.setdefault("last_validation_error", "")
 
     # ── Sidebar — manual run ────────────────────────────────────────────
     with st.sidebar:
@@ -264,12 +266,51 @@ def main():
                     st.text_area("Last Retry Result", st.session_state["last_retry_output"], height=250)
 
         st.divider()
+        st.subheader("🧪 Validate Context Lists")
+        st.caption("Validates context lists against the AI quality rules (gpt-4o).")
+
+        try:
+            from context_validator import pending_validation_count, init_validation_schema
+            init_validation_schema(conn)
+            pending_val = pending_validation_count(conn)
+        except Exception:
+            pending_val = None
+
+        if pending_val is not None:
+            st.caption(f"**Pending validation:** {pending_val} campaign(s)")
+
+        if st.button("🧪 Run Validation Now", use_container_width=True):
+            openai_key = st.secrets.get("OPENAI_API_KEY", "")
+            if not openai_key:
+                st.error("OPENAI_API_KEY not set in Streamlit secrets.")
+            else:
+                with st.spinner("Validating context lists…"):
+                    try:
+                        from context_validator import run_validation
+                        summary = run_validation(conn, openai_api_key=openai_key)
+                        st.session_state["last_validation_output"] = summary
+                        st.session_state["last_validation_error"] = ""
+                        st.success("Validation complete")
+                    except Exception as e:
+                        st.session_state["last_validation_error"] = str(e)
+                        st.session_state["last_validation_output"] = ""
+                        st.error(f"Error: {e}")
+
+        if st.session_state.get("last_validation_output") or st.session_state.get("last_validation_error"):
+            with st.expander("📄 View last validation logs", expanded=False):
+                if st.session_state.get("last_validation_error"):
+                    st.text_area("Last Error", st.session_state["last_validation_error"], height=140)
+                if st.session_state.get("last_validation_output"):
+                    st.text_area("Last Validation Result", st.session_state["last_validation_output"], height=300)
+
+        st.divider()
         st.caption("Analysis dashboard → [Open](https://silverpush-presales-dashboard.streamlit.app)")
 
     # ── Tabs ────────────────────────────────────────────────────────────
-    tab_runs, tab_ctx = st.tabs([
+    tab_runs, tab_ctx, tab_val = st.tabs([
         "📋 Run History",
         "🔍 Run Results",
+        "🧪 Validation Results",
     ])
 
     # ── Run History ─────────────────────────────────────────────────────
@@ -401,6 +442,92 @@ def main():
                     "Monday Link", display_text="Open")
             st.dataframe(filt, use_container_width=True, height=500,
                          column_config=col_cfg, hide_index=True)
+
+    # ── Validation Results ───────────────────────────────────────────────
+    with tab_val:
+        st.subheader("Validation Results")
+        st.caption(
+            "Context lists validated by gpt-4o. "
+            "POSITIVE_EXAMPLE and NEGATIVE_EXAMPLE are stored for model training. "
+            "DO_NOT_STORE (2+ errors) is excluded."
+        )
+
+        try:
+            from context_validator import fetch_validation_results, init_validation_schema
+            init_validation_schema(conn)
+            df_val = fetch_validation_results(conn)
+        except Exception as e:
+            st.error(f"Could not load validation results: {e}")
+            df_val = None
+
+        if df_val is not None:
+            if df_val.empty:
+                st.info("No validation results yet. Click **🧪 Run Validation Now** in the sidebar.")
+            else:
+                STATUS_ICONS = {
+                    "PASS":               "✅ PASS",
+                    "PASS_WITH_WARNINGS": "⚠️ PASS_WITH_WARNINGS",
+                    "FAIL_MINOR":         "🔶 FAIL_MINOR",
+                    "FAIL_MAJOR":         "❌ FAIL_MAJOR",
+                }
+                LABEL_ICONS = {
+                    "POSITIVE_EXAMPLE": "🟢 POSITIVE",
+                    "NEGATIVE_EXAMPLE": "🟡 NEGATIVE",
+                    "DO_NOT_STORE":     "🔴 DO_NOT_STORE",
+                }
+
+                v1, v2, v3 = st.columns([1, 1, 2])
+                reg_opts  = ["All"] + sorted([r for r in df_val["region"].unique() if r])
+                stat_opts = ["All"] + [s for s in STATUS_ICONS if s in df_val["overall_status"].values]
+                label_opts = ["All"] + [l for l in LABEL_ICONS if l in df_val["training_label"].fillna("").values]
+
+                val_reg   = v1.selectbox("Region",         reg_opts,   key="val_reg")
+                val_stat  = v2.selectbox("Overall Status", stat_opts,  key="val_stat")
+                val_label = v3.selectbox("Training Label", label_opts, key="val_label")
+
+                filt_val = df_val.copy()
+                if val_reg != "All":
+                    filt_val = filt_val[filt_val["region"] == val_reg]
+                if val_stat != "All":
+                    filt_val = filt_val[filt_val["overall_status"] == val_stat]
+                if val_label != "All":
+                    filt_val = filt_val[filt_val["training_label"] == val_label]
+
+                # Summary metrics
+                total = len(filt_val)
+                store_count = int(filt_val["store_in_training_db"].fillna(False).sum())
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Total validated", total)
+                m2.metric("Store in training DB", store_count)
+                m3.metric("Avg errors",   f"{filt_val['errors_count'].fillna(0).mean():.1f}" if total else "—")
+                m4.metric("Avg warnings", f"{filt_val['warnings_count'].fillna(0).mean():.1f}" if total else "—")
+
+                st.write(f"Showing **{total}** / {len(df_val)} results")
+
+                # Friendly labels for display
+                display = filt_val.copy()
+                display["overall_status"] = display["overall_status"].map(
+                    lambda x: STATUS_ICONS.get(x, x) if x else ""
+                )
+                display["training_label"] = display["training_label"].map(
+                    lambda x: LABEL_ICONS.get(x, x) if x else ""
+                )
+                display["store_in_training_db"] = display["store_in_training_db"].map(
+                    lambda x: "Yes" if x else ("No" if x is not None else "")
+                )
+
+                col_order = [
+                    "region", "campaign_name", "brand_name", "overall_status",
+                    "training_label", "store_in_training_db",
+                    "errors_count", "warnings_count", "recommendations_count",
+                    "validated_at", "error_log",
+                ]
+                display = display[[c for c in col_order if c in display.columns]]
+                display.columns = [
+                    c.replace("_", " ").title() for c in display.columns
+                ]
+
+                st.dataframe(display, use_container_width=True, height=500, hide_index=True)
 
     conn.close()
 
