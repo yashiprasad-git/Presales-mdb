@@ -444,33 +444,29 @@ def main():
         st.caption("Context lists validated by gpt-4o against signal quality, brief alignment and thematic rules.")
 
         def _extract_findings(report_json: str):
-            """Parse full_validation_report and return (errors, warnings, recommendations) as strings."""
+            """Parse full_validation_report, return (errors, warnings, recs) as lists of dicts."""
             if not report_json:
-                return "", "", ""
+                return [], [], []
             try:
-                report = json.loads(report_json)
+                report  = json.loads(report_json)
                 errors, warnings, recs = [], [], []
                 for check in report.get("check_results", []):
                     for rule in check.get("triggered_rules", []):
                         severity  = rule.get("severity", "")
-                        rule_name = rule.get("rule_name", "")
-                        reasoning = rule.get("reasoning", "")
-                        affected  = rule.get("affected_items", [])
-                        line = f"• {rule_name}"
-                        if reasoning:
-                            line += f": {reasoning}"
-                        if affected:
-                            sample = ", ".join(str(a) for a in affected[:2])
-                            line += f" [{sample}{'...' if len(affected) > 2 else ''}]"
+                        entry = {
+                            "rule":      rule.get("rule_name", ""),
+                            "reasoning": rule.get("reasoning", ""),
+                            "affected":  rule.get("affected_items", []),
+                        }
                         if severity == "error":
-                            errors.append(line)
+                            errors.append(entry)
                         elif severity in ("warning", "info"):
-                            warnings.append(line)
+                            warnings.append(entry)
                         elif severity == "recommendation":
-                            recs.append(line)
-                return "\n\n".join(errors), "\n\n".join(warnings), "\n\n".join(recs)
+                            recs.append(entry)
+                return errors, warnings, recs
             except Exception:
-                return "", "", ""
+                return [], [], []
 
         try:
             from context_validator import fetch_validation_results, init_validation_schema
@@ -491,19 +487,20 @@ def main():
                     "FAIL_MAJOR":         "❌ FAIL MAJOR",
                 }
                 LABEL_ICONS = {
-                    "POSITIVE_EXAMPLE": "🟢 POSITIVE",
-                    "NEGATIVE_EXAMPLE": "🟡 NEGATIVE",
+                    "POSITIVE_EXAMPLE": "🟢 POSITIVE EXAMPLE",
+                    "NEGATIVE_EXAMPLE": "🟡 NEGATIVE EXAMPLE",
                     "DO_NOT_STORE":     "🔴 DO NOT STORE",
                 }
 
+                # ── Filters ─────────────────────────────────────────────
                 v1, v2, v3 = st.columns([1, 1, 2])
                 reg_opts   = ["All"] + sorted([r for r in df_val["region"].unique() if r])
                 stat_opts  = ["All"] + [s for s in STATUS_ICONS if s in df_val["overall_status"].fillna("").values]
                 label_opts = ["All"] + [l for l in LABEL_ICONS if l in df_val["training_label"].fillna("").values]
 
-                val_reg   = v1.selectbox("Region",             reg_opts,   key="val_reg")
-                val_stat  = v2.selectbox("Validation Status",  stat_opts,  key="val_stat")
-                val_label = v3.selectbox("Training Label",     label_opts, key="val_label")
+                val_reg   = v1.selectbox("Region",            reg_opts,   key="val_reg")
+                val_stat  = v2.selectbox("Validation Status", stat_opts,  key="val_stat")
+                val_label = v3.selectbox("Training Label",    label_opts, key="val_label")
 
                 filt_val = df_val.copy()
                 if val_reg   != "All":
@@ -513,52 +510,69 @@ def main():
                 if val_label != "All":
                     filt_val = filt_val[filt_val["training_label"] == val_label]
 
-                # Summary metrics
-                total = len(filt_val)
+                # ── Summary metrics ──────────────────────────────────────
+                total      = len(filt_val)
+                pass_count = int(filt_val["overall_status"].isin(["PASS", "PASS_WITH_WARNINGS"]).sum())
+                fail_count = int(filt_val["overall_status"].isin(["FAIL_MINOR", "FAIL_MAJOR"]).sum())
                 m1, m2, m3 = st.columns(3)
-                m1.metric("Total validated", total)
-                pass_count = int((filt_val["overall_status"].isin(["PASS", "PASS_WITH_WARNINGS"])).sum())
-                fail_count = int((filt_val["overall_status"].isin(["FAIL_MINOR", "FAIL_MAJOR"])).sum())
+                m1.metric("Total Validated", total)
                 m2.metric("Passed", pass_count)
                 m3.metric("Failed", fail_count)
 
-                st.write(f"Showing **{total}** / {len(df_val)} results")
+                st.write(f"Showing **{total}** / {len(df_val)} campaigns")
+                st.divider()
 
-                # Parse findings from full_validation_report
-                findings = filt_val["full_validation_report"].apply(_extract_findings)
-                filt_val = filt_val.copy()
-                filt_val["errors"]          = findings.apply(lambda x: x[0])
-                filt_val["warnings"]        = findings.apply(lambda x: x[1])
-                filt_val["recommendations"] = findings.apply(lambda x: x[2])
+                # ── Campaign cards ───────────────────────────────────────
+                for _, row in filt_val.iterrows():
+                    status_label = STATUS_ICONS.get(row.get("overall_status", ""), row.get("overall_status", "—"))
+                    label_label  = LABEL_ICONS.get(row.get("training_label",  ""), row.get("training_label",  "—"))
+                    campaign     = row.get("campaign_name", "—")
+                    brand        = row.get("brand_name", "—")
+                    region       = row.get("region", "—")
+                    validated_at = row.get("validated_at", "")
+                    error_log    = row.get("error_log", "")
 
-                # Friendly labels
-                filt_val["overall_status"] = filt_val["overall_status"].map(
-                    lambda x: STATUS_ICONS.get(x, x) if x else ""
-                )
-                filt_val["training_label"] = filt_val["training_label"].map(
-                    lambda x: LABEL_ICONS.get(x, x) if x else ""
-                )
+                    errors, warnings, recs = _extract_findings(row.get("full_validation_report", ""))
 
-                col_order = [
-                    "region", "campaign_name", "brand_name",
-                    "overall_status", "training_label",
-                    "errors", "warnings", "recommendations",
-                    "validated_at", "error_log",
-                ]
-                display = filt_val[[c for c in col_order if c in filt_val.columns]]
-                display.columns = [
-                    {
-                        "overall_status": "Validation Status",
-                        "training_label": "Training Label",
-                        "campaign_name":  "Campaign",
-                        "brand_name":     "Brand",
-                        "validated_at":   "Validated At",
-                        "error_log":      "System Error",
-                    }.get(c, c.replace("_", " ").title())
-                    for c in col_order if c in filt_val.columns
-                ]
+                    with st.expander(f"{status_label}  |  {campaign}  —  {brand}  ({region})", expanded=False):
+                        c1, c2, c3 = st.columns(3)
+                        c1.markdown(f"**Validation Status**  \n{status_label}")
+                        c2.markdown(f"**Training Label**  \n{label_label}")
+                        c3.markdown(f"**Validated At**  \n{validated_at}")
 
-                st.dataframe(display, use_container_width=True, height=500, hide_index=True)
+                        if error_log:
+                            st.error(f"System error: {error_log}")
+
+                        if errors:
+                            st.markdown("**🔴 Errors**")
+                            for e in errors:
+                                st.markdown(f"**{e['rule']}**")
+                                if e["reasoning"]:
+                                    st.write(e["reasoning"])
+                                if e["affected"]:
+                                    st.caption("Affected: " + ", ".join(str(a) for a in e["affected"]))
+                                st.markdown("---")
+
+                        if warnings:
+                            st.markdown("**🟡 Warnings**")
+                            for w in warnings:
+                                st.markdown(f"**{w['rule']}**")
+                                if w["reasoning"]:
+                                    st.write(w["reasoning"])
+                                if w["affected"]:
+                                    st.caption("Affected: " + ", ".join(str(a) for a in w["affected"]))
+                                st.markdown("---")
+
+                        if recs:
+                            st.markdown("**🔵 Recommendations**")
+                            for r in recs:
+                                st.markdown(f"**{r['rule']}**")
+                                if r["reasoning"]:
+                                    st.write(r["reasoning"])
+                                st.markdown("---")
+
+                        if not errors and not warnings and not recs and not error_log:
+                            st.success("No issues found.")
 
     conn.close()
 
