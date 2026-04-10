@@ -279,9 +279,26 @@ def main():
         if pending_val is not None:
             st.caption(f"**Pending validation:** {pending_val} campaign(s)")
 
+        try:
+            _oai = "OPENAI_API_KEY" in st.secrets
+            _ant = "ANTHROPIC_API_KEY" in st.secrets
+            st.caption(
+                f"AI provider: "
+                f"{'✅ OpenAI key found' if _oai else '—'} "
+                f"{'✅ Anthropic key found' if _ant else '—'}"
+            )
+        except Exception:
+            pass
+
         if st.button("🧪 Run Validation Now", use_container_width=True):
-            openai_key     = st.secrets.get("OPENAI_API_KEY",     "")
-            anthropic_key  = st.secrets.get("ANTHROPIC_API_KEY",  "")
+            try:
+                openai_key    = st.secrets["OPENAI_API_KEY"]
+            except (KeyError, Exception):
+                openai_key    = ""
+            try:
+                anthropic_key = st.secrets["ANTHROPIC_API_KEY"]
+            except (KeyError, Exception):
+                anthropic_key = ""
             if not openai_key and not anthropic_key:
                 st.error("No AI key found. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to Streamlit secrets.")
             else:
