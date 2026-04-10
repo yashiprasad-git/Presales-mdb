@@ -279,37 +279,18 @@ def main():
         if pending_val is not None:
             st.caption(f"**Pending validation:** {pending_val} campaign(s)")
 
-        try:
-            _oai = "OPENAI_API_KEY" in st.secrets
-            _ant = "ANTHROPIC_API_KEY" in st.secrets
-            st.caption(
-                f"AI provider: "
-                f"{'✅ OpenAI key found' if _oai else '—'} "
-                f"{'✅ Anthropic key found' if _ant else '—'}"
-            )
-        except Exception:
-            pass
-
         if st.button("🧪 Run Validation Now", use_container_width=True):
             try:
-                openai_key    = st.secrets["OPENAI_API_KEY"]
+                openai_key = st.secrets["OPENAI_API_KEY"]
             except (KeyError, Exception):
-                openai_key    = ""
-            try:
-                anthropic_key = st.secrets["ANTHROPIC_API_KEY"]
-            except (KeyError, Exception):
-                anthropic_key = ""
-            if not openai_key and not anthropic_key:
-                st.error("No AI key found. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to Streamlit secrets.")
+                openai_key = ""
+            if not openai_key:
+                st.error("OPENAI_API_KEY not set in Streamlit secrets.")
             else:
                 with st.spinner("Validating context lists…"):
                     try:
                         from context_validator import run_validation
-                        summary = run_validation(
-                            conn,
-                            openai_api_key=openai_key,
-                            anthropic_api_key=anthropic_key,
-                        )
+                        summary = run_validation(conn, openai_api_key=openai_key)
                         st.session_state["last_validation_output"] = summary
                         st.session_state["last_validation_error"] = ""
                         st.success("Validation complete")
