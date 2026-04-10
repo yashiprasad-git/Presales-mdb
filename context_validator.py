@@ -91,6 +91,7 @@ def _get_campaigns_needing_validation(conn) -> List[Dict]:
             INNER JOIN context_rows cr ON cr.monday_item_id = c.monday_item_id
             LEFT  JOIN validation_results vr ON vr.monday_item_id = c.monday_item_id
             WHERE vr.monday_item_id IS NULL
+               OR vr.overall_status IS NULL
             ORDER BY c.monday_item_id
         """)
         return [dict(r) for r in cur.fetchall()]
