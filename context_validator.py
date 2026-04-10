@@ -379,9 +379,8 @@ def fetch_validation_results(conn) -> "Any":
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
                 SELECT monday_item_id, region, campaign_name, brand_name,
-                       overall_status, training_label, store_in_training_db,
-                       errors_count, warnings_count, recommendations_count,
-                       validated_at, error_log
+                       overall_status, training_label,
+                       validated_at, error_log, full_validation_report
                 FROM validation_results
                 ORDER BY validated_at DESC
             """)

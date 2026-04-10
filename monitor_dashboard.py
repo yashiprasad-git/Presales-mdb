@@ -5,6 +5,7 @@ Prefer: streamlit run mdb/monitor_dashboard.py
 Canonical copy: mdb/monitor_dashboard.py
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -440,11 +441,36 @@ def main():
     # ── Validation Results ───────────────────────────────────────────────
     with tab_val:
         st.subheader("Validation Results")
-        st.caption(
-            "Context lists validated by gpt-4o. "
-            "POSITIVE_EXAMPLE and NEGATIVE_EXAMPLE are stored for model training. "
-            "DO_NOT_STORE (2+ errors) is excluded."
-        )
+        st.caption("Context lists validated by gpt-4o against signal quality, brief alignment and thematic rules.")
+
+        def _extract_findings(report_json: str):
+            """Parse full_validation_report and return (errors, warnings, recommendations) as strings."""
+            if not report_json:
+                return "", "", ""
+            try:
+                report = json.loads(report_json)
+                errors, warnings, recs = [], [], []
+                for check in report.get("check_results", []):
+                    for rule in check.get("triggered_rules", []):
+                        severity  = rule.get("severity", "")
+                        rule_name = rule.get("rule_name", "")
+                        reasoning = rule.get("reasoning", "")
+                        affected  = rule.get("affected_items", [])
+                        line = f"• {rule_name}"
+                        if reasoning:
+                            line += f": {reasoning}"
+                        if affected:
+                            sample = ", ".join(str(a) for a in affected[:2])
+                            line += f" [{sample}{'...' if len(affected) > 2 else ''}]"
+                        if severity == "error":
+                            errors.append(line)
+                        elif severity in ("warning", "info"):
+                            warnings.append(line)
+                        elif severity == "recommendation":
+                            recs.append(line)
+                return "\n\n".join(errors), "\n\n".join(warnings), "\n\n".join(recs)
+            except Exception:
+                return "", "", ""
 
         try:
             from context_validator import fetch_validation_results, init_validation_schema
@@ -456,69 +482,80 @@ def main():
 
         if df_val is not None:
             if df_val.empty:
-                st.info("No validation results yet. Click **🧪 Run Validation Now** in the sidebar.")
+                st.info("No validation results yet. Run DB Update or Retry to trigger validation.")
             else:
                 STATUS_ICONS = {
                     "PASS":               "✅ PASS",
-                    "PASS_WITH_WARNINGS": "⚠️ PASS_WITH_WARNINGS",
-                    "FAIL_MINOR":         "🔶 FAIL_MINOR",
-                    "FAIL_MAJOR":         "❌ FAIL_MAJOR",
+                    "PASS_WITH_WARNINGS": "⚠️ PASS WITH WARNINGS",
+                    "FAIL_MINOR":         "🔶 FAIL MINOR",
+                    "FAIL_MAJOR":         "❌ FAIL MAJOR",
                 }
                 LABEL_ICONS = {
                     "POSITIVE_EXAMPLE": "🟢 POSITIVE",
                     "NEGATIVE_EXAMPLE": "🟡 NEGATIVE",
-                    "DO_NOT_STORE":     "🔴 DO_NOT_STORE",
+                    "DO_NOT_STORE":     "🔴 DO NOT STORE",
                 }
 
                 v1, v2, v3 = st.columns([1, 1, 2])
-                reg_opts  = ["All"] + sorted([r for r in df_val["region"].unique() if r])
-                stat_opts = ["All"] + [s for s in STATUS_ICONS if s in df_val["overall_status"].values]
+                reg_opts   = ["All"] + sorted([r for r in df_val["region"].unique() if r])
+                stat_opts  = ["All"] + [s for s in STATUS_ICONS if s in df_val["overall_status"].fillna("").values]
                 label_opts = ["All"] + [l for l in LABEL_ICONS if l in df_val["training_label"].fillna("").values]
 
-                val_reg   = v1.selectbox("Region",         reg_opts,   key="val_reg")
-                val_stat  = v2.selectbox("Overall Status", stat_opts,  key="val_stat")
-                val_label = v3.selectbox("Training Label", label_opts, key="val_label")
+                val_reg   = v1.selectbox("Region",             reg_opts,   key="val_reg")
+                val_stat  = v2.selectbox("Validation Status",  stat_opts,  key="val_stat")
+                val_label = v3.selectbox("Training Label",     label_opts, key="val_label")
 
                 filt_val = df_val.copy()
-                if val_reg != "All":
+                if val_reg   != "All":
                     filt_val = filt_val[filt_val["region"] == val_reg]
-                if val_stat != "All":
+                if val_stat  != "All":
                     filt_val = filt_val[filt_val["overall_status"] == val_stat]
                 if val_label != "All":
                     filt_val = filt_val[filt_val["training_label"] == val_label]
 
                 # Summary metrics
                 total = len(filt_val)
-                store_count = int(filt_val["store_in_training_db"].fillna(False).sum())
-                m1, m2, m3, m4 = st.columns(4)
+                m1, m2, m3 = st.columns(3)
                 m1.metric("Total validated", total)
-                m2.metric("Store in training DB", store_count)
-                m3.metric("Avg errors",   f"{filt_val['errors_count'].fillna(0).mean():.1f}" if total else "—")
-                m4.metric("Avg warnings", f"{filt_val['warnings_count'].fillna(0).mean():.1f}" if total else "—")
+                pass_count = int((filt_val["overall_status"].isin(["PASS", "PASS_WITH_WARNINGS"])).sum())
+                fail_count = int((filt_val["overall_status"].isin(["FAIL_MINOR", "FAIL_MAJOR"])).sum())
+                m2.metric("Passed", pass_count)
+                m3.metric("Failed", fail_count)
 
                 st.write(f"Showing **{total}** / {len(df_val)} results")
 
-                # Friendly labels for display
-                display = filt_val.copy()
-                display["overall_status"] = display["overall_status"].map(
+                # Parse findings from full_validation_report
+                findings = filt_val["full_validation_report"].apply(_extract_findings)
+                filt_val = filt_val.copy()
+                filt_val["errors"]          = findings.apply(lambda x: x[0])
+                filt_val["warnings"]        = findings.apply(lambda x: x[1])
+                filt_val["recommendations"] = findings.apply(lambda x: x[2])
+
+                # Friendly labels
+                filt_val["overall_status"] = filt_val["overall_status"].map(
                     lambda x: STATUS_ICONS.get(x, x) if x else ""
                 )
-                display["training_label"] = display["training_label"].map(
+                filt_val["training_label"] = filt_val["training_label"].map(
                     lambda x: LABEL_ICONS.get(x, x) if x else ""
-                )
-                display["store_in_training_db"] = display["store_in_training_db"].map(
-                    lambda x: "Yes" if x else ("No" if x is not None else "")
                 )
 
                 col_order = [
-                    "region", "campaign_name", "brand_name", "overall_status",
-                    "training_label", "store_in_training_db",
-                    "errors_count", "warnings_count", "recommendations_count",
+                    "region", "campaign_name", "brand_name",
+                    "overall_status", "training_label",
+                    "errors", "warnings", "recommendations",
                     "validated_at", "error_log",
                 ]
-                display = display[[c for c in col_order if c in display.columns]]
+                display = filt_val[[c for c in col_order if c in filt_val.columns]]
                 display.columns = [
-                    c.replace("_", " ").title() for c in display.columns
+                    {
+                        "overall_status": "Validation Status",
+                        "training_label": "Training Label",
+                        "campaign_name":  "Campaign",
+                        "brand_name":     "Brand",
+                        "validated_at":   "Validated At",
+                        "error_log":      "System Error",
+                    }.get(c, c.replace("_", " ").title())
+                    for c in col_order if c in filt_val.columns
                 ]
 
                 st.dataframe(display, use_container_width=True, height=500, hide_index=True)
