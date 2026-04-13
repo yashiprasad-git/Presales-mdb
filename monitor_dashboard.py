@@ -86,7 +86,7 @@ def fetch_pipeline_runs(conn) -> pd.DataFrame:
             SET status = 'abandoned',
                 finished_at_utc = NOW()
             WHERE status = 'running'
-              AND started_at_utc < NOW() - INTERVAL '1 hour'
+              AND started_at_utc::timestamptz < NOW() - INTERVAL '1 hour'
         """)
     conn.commit()
     return _df(conn, """
