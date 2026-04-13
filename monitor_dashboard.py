@@ -183,12 +183,15 @@ def _run_validation_step(conn) -> str:
         openai_key = ""
     if not openai_key:
         return "⚠️ Validation skipped — OPENAI_API_KEY not set in Streamlit secrets."
+    # DEBUG: show last 6 chars of key being used — remove once confirmed working
+    key_hint = f"...{openai_key[-6:]}" if len(openai_key) >= 6 else "(too short)"
     try:
         from context_validator import run_validation, init_validation_schema
         init_validation_schema(conn)
-        return run_validation(conn, openai_api_key=openai_key)
+        result = run_validation(conn, openai_api_key=openai_key)
+        return f"[DEBUG] Key used: {key_hint}\n\n{result}"
     except Exception as e:
-        return f"⚠️ Validation error: {e}"
+        return f"[DEBUG] Key used: {key_hint}\n⚠️ Validation error: {e}"
 
 
 def main():
