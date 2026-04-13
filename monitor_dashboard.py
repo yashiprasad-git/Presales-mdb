@@ -79,6 +79,16 @@ def _df(conn, sql: str, params: tuple = ()) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def fetch_pipeline_runs(conn) -> pd.DataFrame:
+    # Auto-resolve any run stuck in 'running' for more than 1 hour
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE pipeline_runs
+            SET status = 'abandoned',
+                finished_at_utc = NOW()
+            WHERE status = 'running'
+              AND started_at_utc < NOW() - INTERVAL '1 hour'
+        """)
+    conn.commit()
     return _df(conn, """
         SELECT run_id, started_at_utc, finished_at_utc, status
         FROM pipeline_runs
@@ -328,7 +338,7 @@ def main():
                     merged[col] = 0
 
             def _status_icon(s):
-                return "✅" if s == "success" else ("⏳" if s == "running" else "❌")
+                return "✅" if s == "success" else ("⏳" if s == "running" else ("⚠️" if s == "abandoned" else "❌"))
 
             merged[""] = merged["status"].apply(_status_icon)
             display_cols = ["", "run_id", "started_at_utc", "finished_at_utc",
@@ -533,7 +543,9 @@ def main():
                     brand        = row.get("brand_name", "—")
                     region       = row.get("region", "—")
                     validated_at = row.get("validated_at", "")
-                    error_log    = row.get("error_log", "")
+                    error_log    = row.get("error_log") or ""
+                    if str(error_log).lower() == "nan":
+                        error_log = ""
 
                     errors, warnings, recs = _extract_findings(row.get("full_validation_report", ""))
 

@@ -420,9 +420,9 @@ def _mentions_kw(v: str) -> bool:
 def should_include(col_values: Dict[str, str], board: Dict) -> bool:
     """
     Return True if the campaign qualifies for inventory check.
-    APAC special rule: Products-to-pitch must mention Mirror AND Platform-to-pitch
-    must mention YouTube. For all other boards: any product column mentioning
-    Mirror/YouTube qualifies; all-blank product columns also qualify.
+    Blank product columns are EXCLUDED on all boards — no safety net.
+    APAC: Products-to-pitch must mention Mirror AND Platform-to-pitch must mention YouTube.
+    Non-APAC: any product column must mention Mirror or YouTube.
     """
     product_ids = board.get("product_col_ids", [])
     if not product_ids:
@@ -430,7 +430,10 @@ def should_include(col_values: Dict[str, str], board: Dict) -> bool:
 
     product_vals = [str(col_values.get(cid, "") or "").strip() for cid in product_ids]
     any_nonblank = any(v for v in product_vals)
-    any_match    = any(_mentions_kw(v) for v in product_vals)
+
+    # All product columns blank → exclude (no safety net)
+    if not any_nonblank:
+        return False
 
     region = (board.get("region") or "").upper()
     if "APAC" in region:
@@ -438,15 +441,10 @@ def should_include(col_values: Dict[str, str], board: Dict) -> bool:
         platform_val = str(col_values.get(platform_id, "") or "").lower()
         has_youtube  = "youtube" in platform_val
         has_mirror   = any("mirror" in v.lower() for v in product_vals)
-        # Qualify if Mirrors 2.0 + YouTube platform, OR all-blank products
-        if any_nonblank:
-            return has_mirror and has_youtube
-        return True  # all blank → include
+        return has_mirror and has_youtube
 
-    # Non-APAC: include if any match or all blank
-    if any_nonblank and not any_match:
-        return False
-    return True
+    # Non-APAC: at least one product column must mention Mirror/YouTube
+    return any(_mentions_kw(v) for v in product_vals)
 
 
 # ---------------------------------------------------------------------------
