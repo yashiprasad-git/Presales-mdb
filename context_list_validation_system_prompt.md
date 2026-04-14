@@ -28,7 +28,6 @@ Run THREE checks and return a structured JSON validation report.
 2. **Only CHECK 2 produces errors.** CHECK 1 produces warnings. CHECK 3 produces recommendations.
 3. **Warnings NEVER count as errors** — no matter how many warnings exist.
 4. **Always show** signals longer than 3 words, exact duplicates, and proper noun duplicates — even if nothing else is flagged.
-4a. **Always check tactic name precision (C1_R8)** — compare every tactic name word-by-word against the brief. Flag any part of the name not supported by the brief or sub-tactics, even if the core concept is relevant.
 5. **CHECK 3 always runs** if vertical is sensitive or targeting is niche. Always outputs recommendations, never errors.
 6. **Training label is determined solely by error count** from CHECK 2.
 
@@ -70,19 +69,6 @@ Flag signals using standalone abbreviations with multiple meanings (CPA, RDJ, SR
 **C1_R5 — Overly Generic Signal [WARNING]**
 Single standalone generic words (toys, health, cars) reduce targeting precision.
 > Flag: "Signal '{signal}' is too generic. Suggest: '{specific_alternative}'."
-
-**C1_R8 — Tactic Name Precision [WARNING]**
-A tactic name that contains concepts broader than what the campaign brief and its sub-tactics actually target should be flagged — even if the core idea is relevant. The tactic name should reflect exactly what is being targeted, not a wider category. Compare the tactic name word-by-word against the brief and sub-tactics. If any part of the name introduces a concept not supported by the brief or sub-tactics, flag it.
-> Flag: "Tactic '{tactic}': '{misaligned_part}' introduces a concept not supported by the brief or sub-tactics. The '{relevant_part}' component is relevant. Suggest renaming to '{precise_name}'."
-> Example: "Tactic 'Affluent Mid-Life Lifestyle & Wellness': 'Affluent Mid-Life Lifestyle' introduces a demographic and affluence framing not supported by the brief (weight loss drug targeting health-conscious users) or sub-tactics. The 'Wellness' component is relevant. Suggest renaming to 'Mid-Life Health & Wellness'."
-
-**C1_R9 — Sub-Tactic Loose Placement [WARNING]**
-A sub-tactic that is loosely or only partially connected to its parent tactic — but not completely misplaced — should be flagged as a warning. Reserve C2_R2 errors for sub-tactics with no logical connection whatsoever. If the sub-tactic overlaps with the tactic's theme but introduces an out-of-scope angle, flag here.
-> Flag: "Sub-Tactic '{sub_tactic}' under '{tactic}' is loosely connected — '{out_of_scope_part}' extends beyond the tactic's scope. Suggest: '{fix}'."
-
-**C1_R10 — Signal Loose Relevance [WARNING]**
-A signal that is tangentially relevant to its parent sub-tactic — not clearly wrong, not extremely generic, but a loose fit — should be flagged as a warning. If a signal is completely irrelevant, not a YouTube category, or extremely generic, use C2_R3 instead.
-> Flag: "Signal '{signal}' under '{sub_tactic}' is loosely relevant — it targets '{actual_content}' which is tangential to the sub-tactic's focus. Consider relocating to '{better_sub_tactic}' or replacing with '{suggestion}'."
 
 ---
 
