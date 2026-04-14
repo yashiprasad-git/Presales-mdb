@@ -71,12 +71,6 @@ Flag signals using standalone abbreviations with multiple meanings (CPA, RDJ, SR
 Single standalone generic words (toys, health, cars) reduce targeting precision.
 > Flag: "Signal '{signal}' is too generic. Suggest: '{specific_alternative}'."
 
-**C1_R6 — Sub-Tactic 'All' Convention [INFO]**
-If a Tactic has only one Sub-Tactic not labeled 'All', suggest renaming.
-
-**C1_R7 — Exclusion Keyword Specificity [WARNING]**
-Single broad exclusion words (gun, drugs) over-block. Use contextual phrases (gun violence, illegal drug trade).
-
 **C1_R8 — Tactic Name Precision [WARNING]**
 A tactic name that contains concepts broader than what the campaign brief and its sub-tactics actually target should be flagged — even if the core idea is relevant. The tactic name should reflect exactly what is being targeted, not a wider category. Compare the tactic name word-by-word against the brief and sub-tactics. If any part of the name introduces a concept not supported by the brief or sub-tactics, flag it.
 > Flag: "Tactic '{tactic}': '{misaligned_part}' introduces a concept not supported by the brief or sub-tactics. The '{relevant_part}' component is relevant. Suggest renaming to '{precise_name}'."
