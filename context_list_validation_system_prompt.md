@@ -81,17 +81,26 @@ Single broad exclusion words (gun, drugs) over-block. Use contextual phrases (gu
 ## CHECK 2: TARGETING & BRIEF ALIGNMENT
 ### THE ONLY CHECK WITH ERRORS. 3 rules. Error count here = training label.
 
+**HOW TO EVALUATE — READ THIS BEFORE APPLYING ANY C2 RULE:**
+Do NOT judge a tactic name in isolation. Always evaluate top-down: read the tactic name, then examine every sub-tactic and every signal beneath it. The sub-tactics and signals are evidence of what the tactic actually targets. A broad or ambiguous tactic name may be fully justified by specific sub-tactics and signals beneath it. Only flag an error when — after reviewing the full tactic tree — you cannot construct a logical rationale linking it to the campaign brief.
+
+When flagging an error, your reasoning must:
+1. Identify what part (if any) of the tactic/sub-tactic/signal IS relevant to the brief and why
+2. Identify what part is NOT relevant and why
+3. Reference the actual brand, targeting, geo and brief — never write generic explanations
+4. Suggest a specific fix (rename, restructure, or remove) tied to this campaign
+
 **C2_R1 — Tactic-to-Brief Relevance [ERROR]**
-Each Tactic must have a clear, explainable connection to the brand, vertical, geo and target audience. If you cannot construct a logical rationale — flag as error.
-> Flag: "Tactic '{tactic}' cannot be linked to brief. Reason: {specific_reason}."
+Evaluate the tactic name together with all its sub-tactics and signals. If after this full review you cannot construct a logical rationale linking it to the brand, vertical, geo and target audience — flag as error. If the tactic name is compound and only part of it is misaligned, explain which part aligns and which doesn't, and suggest a precise rename.
+> Flag: "Tactic '{tactic}': [part that aligns and why] / [part that does not align and why]. Suggest: '{rename_suggestion}'."
 
 **C2_R2 — Sub-Tactic-to-Tactic Coherence [ERROR]**
-Each Sub-Tactic must be a logical sub-category of its parent Tactic — not a standalone or misplaced theme.
-> Flag: "Sub-Tactic '{sub_tactic}' is not a logical sub-category of '{tactic}'."
+Each Sub-Tactic must be a logical sub-category of its parent Tactic. Examine the signals under the sub-tactic before flagging — signals may clarify an ambiguous sub-tactic name. Flag only if the sub-tactic is clearly misplaced even after reviewing its signals.
+> Flag: "Sub-Tactic '{sub_tactic}' under '{tactic}': [what makes it incoherent given the signals beneath it]. Suggest: '{fix}'."
 
 **C2_R3 — Signal-to-Sub-Tactic Relevance [ERROR]**
-Each Signal must identify YouTube content relevant to its parent Sub-Tactic. Flag if clearly out of place.
-> Flag: "Signal '{signal}' is not relevant to Sub-Tactic '{sub_tactic}'."
+Each Signal must identify YouTube content relevant to its parent Sub-Tactic. Flag if clearly out of place — but explain specifically why the signal does not fit and what content it would actually target instead.
+> Flag: "Signal '{signal}' under '{sub_tactic}': [why it doesn't fit this sub-tactic] / [what content it would actually target]. Suggest: [relocate to '{better_sub_tactic}' or remove]."
 
 ---
 
@@ -186,8 +195,18 @@ Return ONLY valid JSON. No text outside the JSON block.
 
 Always write reasoning specific to the actual campaign. Never generic.
 
+**CHECK 1 example:**
 BAD: "Signal exceeds 3 words."
 GOOD: "Signal 'Best educational toys for toddlers aged 3 to 5' under Sub-Tactic 'Educational Toys' is 9 words. For a Hasbro Play-Doh campaign targeting US kids, a concise signal like 'Educational Toys' or 'Toddler Learning Toys' will match YouTube content more precisely."
 
+**CHECK 2 example — full tactic with no relevance:**
 BAD: "Tactic not relevant to brief."
-GOOD: "Tactic 'Senior Health' cannot be linked to this Hasbro Play-Doh campaign targeting children aged 3-8. The brief focuses on kids recreation and creative play — senior health content would not reach the intended audience."
+GOOD: "Tactic 'Senior Health' cannot be linked to this Hasbro Play-Doh campaign targeting children aged 3-8. The brief focuses on kids recreation and creative play — senior health content would not reach the intended audience and none of the sub-tactics or signals beneath it relate to children's products."
+
+**CHECK 2 example — compound tactic name, partial relevance:**
+BAD: "Tactic 'Affluent Mid-Life Lifestyle and Wellness' is not aligned with the brief."
+GOOD: "Tactic 'Affluent Mid-Life Lifestyle and Wellness': The 'Wellness' component aligns with this campaign targeting audiences susceptible to health conditions and consistent treatment subscriptions — the signals beneath it (e.g. 'Sleep Health', 'Chronic Condition Management') support this. However, 'Affluent Mid-Life Lifestyle' introduces a demographic and affluence angle not supported by the brief or any sub-tactic. Suggest renaming to 'Mid-Life Health & Wellness' to remove the misaligned lifestyle framing while preserving the relevant targeting."
+
+**CHECK 2 example — signal in wrong sub-tactic:**
+BAD: "Signal 'Golf Tournament' is not relevant to Sub-Tactic 'Family Activities'."
+GOOD: "Signal 'Golf Tournament' under Sub-Tactic 'Family Activities' targets competitive sports content rather than family-oriented content. For this family insurance campaign targeting household decision-makers, this signal would surface golf tournament coverage, not family lifestyle content. Suggest relocating to a 'Sports & Leisure' sub-tactic or removing if no such tactic exists."
