@@ -850,8 +850,21 @@ def read_context_rows(xls: Any, tab_name: str) -> Tuple[List[Dict], str]:
     local_lang  = next(iter(local_langs), "")
     local_group = local_langs.get(local_lang, {})
 
+    # If the header row has no tactic column at all (e.g. horizontal/matrix layout
+    # where tactic names are merged row headers rather than a dedicated column),
+    # the format is non-standard — reject immediately.
+    if "tactic" not in en_group:
+        return [], ""
+
     rows: List[Dict] = []
     data_rows = df.iloc[header_row_idx + 1:]
+
+    # Forward-fill state: tactic and subtactic cells are often merged in standard
+    # context lists, meaning only the first row of each group carries the value.
+    last_tactic_en    = ""
+    last_subtactic_en = ""
+    last_tactic_local    = ""
+    last_subtactic_local = ""
 
     for _, row_vals in data_rows.iterrows():
         def _get(group: Dict[str, int], col: str) -> str:
@@ -863,18 +876,47 @@ def read_context_rows(xls: Any, tab_name: str) -> Tuple[List[Dict], str]:
 
         tactic_en = _get(en_group, "tactic")
         signal_en = _get(en_group, "signal")
-        if not tactic_en and not signal_en:
-            continue
+
         # Skip if this is a header word itself
         if any(kw in tactic_en.lower() for kw in TACTIC_KEYWORDS):
             continue
 
+        # Forward-fill tactic and subtactic from previous rows (merged cells)
+        if tactic_en:
+            last_tactic_en    = tactic_en
+            last_subtactic_en = ""          # new tactic resets subtactic carry
+        else:
+            tactic_en = last_tactic_en
+
+        subtactic_en = _get(en_group, "subtactic")
+        if subtactic_en:
+            last_subtactic_en = subtactic_en
+        else:
+            subtactic_en = last_subtactic_en
+
+        tactic_local = _get(local_group, "tactic")
+        if tactic_local:
+            last_tactic_local    = tactic_local
+            last_subtactic_local = ""
+        else:
+            tactic_local = last_tactic_local
+
+        subtactic_local = _get(local_group, "subtactic")
+        if subtactic_local:
+            last_subtactic_local = subtactic_local
+        else:
+            subtactic_local = last_subtactic_local
+
+        # After forward-fill, skip rows that still have no tactic or no signal
+        if not tactic_en or not signal_en:
+            continue
+
         rows.append({
             "tactic_en":    tactic_en,
-            "subtactic_en": _get(en_group, "subtactic"),
+            "subtactic_en": subtactic_en,
             "signal_en":    signal_en,
-            "tactic_local":    _get(local_group, "tactic"),
-            "subtactic_local": _get(local_group, "subtactic"),
+            "tactic_local":    tactic_local,
+            "subtactic_local": subtactic_local,
             "signal_local":    _get(local_group, "signal"),
         })
 
