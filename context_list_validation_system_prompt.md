@@ -87,7 +87,7 @@ A sub-tactic that is loosely or only partially connected to its parent tactic �
 > Flag: "Sub-Tactic '{sub_tactic}' under '{tactic}' is loosely connected — '{out_of_scope_part}' extends beyond the tactic's scope. Suggest: '{fix}'."
 
 **C1_R10 — Signal Loose Relevance [WARNING]**
-A signal that is loosely or only tangentially relevant to its parent sub-tactic — but not clearly wrong — should be flagged as a warning. Reserve C2_R3 errors for signals that are clearly out of place. If the signal could fit the sub-tactic under a stretch interpretation, flag here instead.
+A signal that is tangentially relevant to its parent sub-tactic — not clearly wrong, not extremely generic, but a loose fit — should be flagged as a warning. If a signal is completely irrelevant, not a YouTube category, or extremely generic, use C2_R3 instead.
 > Flag: "Signal '{signal}' under '{sub_tactic}' is loosely relevant — it targets '{actual_content}' which is tangential to the sub-tactic's focus. Consider relocating to '{better_sub_tactic}' or replacing with '{suggestion}'."
 
 ---
@@ -96,25 +96,24 @@ A signal that is loosely or only tangentially relevant to its parent sub-tactic 
 ### THE ONLY CHECK WITH ERRORS. 3 rules. Error count here = training label.
 
 **HOW TO EVALUATE — READ THIS BEFORE APPLYING ANY C2 RULE:**
-Do NOT judge a tactic name in isolation. Always evaluate top-down: read the tactic name, then examine every sub-tactic and every signal beneath it. The sub-tactics and signals are evidence of what the tactic actually targets. A broad or ambiguous tactic name may be fully justified by specific sub-tactics and signals beneath it. Only flag a CHECK 2 error when — after reviewing the full tactic tree — the misalignment is clear and unambiguous with no logical rationale linking it to the campaign brief. Partial misalignments, imprecise naming, and loose placements belong in CHECK 1 warnings (C1_R8, C1_R9, C1_R10).
-
-When flagging an error, your reasoning must:
-1. Identify what part (if any) of the tactic/sub-tactic/signal IS relevant to the brief and why
-2. Identify what part is NOT relevant and why
-3. Reference the actual brand, targeting, geo and brief — never write generic explanations
-4. Suggest a specific fix (rename, restructure, or remove) tied to this campaign
+Each C2 rule has a single, clearly defined scope. Do not bleed logic between rules. When flagging any error, reasoning must: reference the actual brand, targeting, geo and brief; identify specifically what is wrong and why; suggest a concrete fix.
 
 **C2_R1 — Tactic-to-Brief Relevance [ERROR]**
-Evaluate the tactic name together with all its sub-tactics and signals. If after this full review you cannot construct a logical rationale linking it to the brand, vertical, geo and target audience — flag as error. If the tactic name is compound and only part of it is misaligned, explain which part aligns and which doesn't, and suggest a precise rename.
-> Flag: "Tactic '{tactic}': [part that aligns and why] / [part that does not align and why]. Suggest: '{rename_suggestion}'."
+Check the tactic NAME directly against the campaign brief, brand, vertical, geo and target audience. Do NOT look at sub-tactics or signals to justify the tactic name — the tactic name must stand on its own. For compound tactic names (e.g. "Affluent Mid-Life Lifestyle & Wellness"), evaluate each component of the name separately against the brief. If any component of the name cannot be linked to the brief, flag it — name the misaligned component, explain why it doesn't fit, and suggest a precise rename.
+> Flag: "Tactic '{tactic}': '{misaligned_component}' cannot be linked to the brief because [specific reason]. '{aligned_component}' is relevant. Suggest renaming to '{precise_name}'."
 
 **C2_R2 — Sub-Tactic-to-Tactic Coherence [ERROR]**
 Ask only one question: is this sub-tactic a logical subcategory of its parent tactic? Do NOT consider the campaign brief here — brief alignment is C2_R1's responsibility. A sub-tactic about "General Sleep Aid Brands" under a tactic "Focusing on Sleep" is coherent regardless of what the campaign brief says. Flag only if the sub-tactic is taxonomically misplaced — i.e. it could not reasonably be considered a subcategory of the parent tactic under any interpretation.
 > Flag: "Sub-Tactic '{sub_tactic}' is not a logical subcategory of '{tactic}' because [taxonomic reason]. Suggest: '{fix}'."
 
-**C2_R3 — Signal-to-Sub-Tactic Relevance [ERROR]**
-Each Signal must identify YouTube content relevant to its parent Sub-Tactic. Flag if clearly out of place — but explain specifically why the signal does not fit and what content it would actually target instead.
-> Flag: "Signal '{signal}' under '{sub_tactic}': [why it doesn't fit this sub-tactic] / [what content it would actually target]. Suggest: [relocate to '{better_sub_tactic}' or remove]."
+**C2_R3 — Signal Quality & Relevance [ERROR]**
+Flag a signal as an error if ANY of these three conditions are true:
+1. **Not relevant to sub-tactic** — the signal does not identify YouTube content that fits its parent sub-tactic
+2. **Not a recognizable YouTube content category** — the signal is not a term that would surface real YouTube content (e.g. internal jargon, vague phrases, made-up terms)
+3. **Extremely generic** — the signal is so broad it provides no meaningful targeting precision (e.g. single words like "health", "food", "sports" or phrases so vague they match everything)
+
+Note: moderately generic signals belong in C1_R5 (warning). C2_R3 is for signals so generic they are effectively useless for targeting.
+> Flag: "Signal '{signal}' under '{sub_tactic}': [which condition triggered and why]. Suggest: [specific replacement or remove]."
 
 ---
 
