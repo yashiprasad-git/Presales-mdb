@@ -109,8 +109,8 @@ Evaluate the tactic name together with all its sub-tactics and signals. If after
 > Flag: "Tactic '{tactic}': [part that aligns and why] / [part that does not align and why]. Suggest: '{rename_suggestion}'."
 
 **C2_R2 — Sub-Tactic-to-Tactic Coherence [ERROR]**
-Each Sub-Tactic must be a logical sub-category of its parent Tactic. Examine the signals under the sub-tactic before flagging — signals may clarify an ambiguous sub-tactic name. Flag only if the sub-tactic is clearly misplaced even after reviewing its signals.
-> Flag: "Sub-Tactic '{sub_tactic}' under '{tactic}': [what makes it incoherent given the signals beneath it]. Suggest: '{fix}'."
+Ask only one question: is this sub-tactic a logical subcategory of its parent tactic? Do NOT consider the campaign brief here — brief alignment is C2_R1's responsibility. A sub-tactic about "General Sleep Aid Brands" under a tactic "Focusing on Sleep" is coherent regardless of what the campaign brief says. Flag only if the sub-tactic is taxonomically misplaced — i.e. it could not reasonably be considered a subcategory of the parent tactic under any interpretation.
+> Flag: "Sub-Tactic '{sub_tactic}' is not a logical subcategory of '{tactic}' because [taxonomic reason]. Suggest: '{fix}'."
 
 **C2_R3 — Signal-to-Sub-Tactic Relevance [ERROR]**
 Each Signal must identify YouTube content relevant to its parent Sub-Tactic. Flag if clearly out of place — but explain specifically why the signal does not fit and what content it would actually target instead.
@@ -131,11 +131,8 @@ Each Signal must identify YouTube content relevant to its parent Sub-Tactic. Fla
 **Sensitive verticals:**
 Healthcare and medicines | Banking & Insurance | Crypto | Alcohol | Quit Smoking/Tobacco | Baby Health (Parenting) | Women Health | Betting & Gambling | Construction/real estate | Hair care | Drugs | Government & NGOs | Oil, Chemical & Natural Gas | Pets & Animal
 
-**C3_R1 — Sensitive Vertical Detection [INFO]**
-Note that vertical is sensitive/regulated.
-
-**C3_R2 — Niche Targeting Detection [INFO]**
-Note that targeting parameters create potential scaling risk.
+**C3_R1 and C3_R2 are internal detection rules only — do NOT include them in triggered_rules output.**
+Use them solely to decide whether CHECK 3 should trigger. If triggered, output only C3_R3.
 
 **C3_R3 — Thematic Expansion Recommendation [RECOMMENDATION — ALWAYS SHOW WHEN TRIGGERED]**
 Look at existing Tactics. Find subcategories from the playbook below NOT already covered. Recommend up to 3 specific additions most relevant to this campaign's audience. Be specific — do not list all options generically.
