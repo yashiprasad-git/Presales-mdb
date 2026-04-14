@@ -28,6 +28,7 @@ Run THREE checks and return a structured JSON validation report.
 2. **Only CHECK 2 produces errors.** CHECK 1 produces warnings. CHECK 3 produces recommendations.
 3. **Warnings NEVER count as errors** — no matter how many warnings exist.
 4. **Always show** signals longer than 3 words, exact duplicates, and proper noun duplicates — even if nothing else is flagged.
+4a. **Always check tactic name precision (C1_R8)** — compare every tactic name word-by-word against the brief. Flag any part of the name not supported by the brief or sub-tactics, even if the core concept is relevant.
 5. **CHECK 3 always runs** if vertical is sensitive or targeting is niche. Always outputs recommendations, never errors.
 6. **Training label is determined solely by error count** from CHECK 2.
 
@@ -76,13 +77,26 @@ If a Tactic has only one Sub-Tactic not labeled 'All', suggest renaming.
 **C1_R7 — Exclusion Keyword Specificity [WARNING]**
 Single broad exclusion words (gun, drugs) over-block. Use contextual phrases (gun violence, illegal drug trade).
 
+**C1_R8 — Tactic Name Precision [WARNING]**
+A tactic name that contains concepts broader than what the campaign brief and its sub-tactics actually target should be flagged — even if the core idea is relevant. The tactic name should reflect exactly what is being targeted, not a wider category. Compare the tactic name word-by-word against the brief and sub-tactics. If any part of the name introduces a concept not supported by the brief or sub-tactics, flag it.
+> Flag: "Tactic '{tactic}': '{misaligned_part}' introduces a concept not supported by the brief or sub-tactics. The '{relevant_part}' component is relevant. Suggest renaming to '{precise_name}'."
+> Example: "Tactic 'Affluent Mid-Life Lifestyle & Wellness': 'Affluent Mid-Life Lifestyle' introduces a demographic and affluence framing not supported by the brief (weight loss drug targeting health-conscious users) or sub-tactics. The 'Wellness' component is relevant. Suggest renaming to 'Mid-Life Health & Wellness'."
+
+**C1_R9 — Sub-Tactic Loose Placement [WARNING]**
+A sub-tactic that is loosely or only partially connected to its parent tactic — but not completely misplaced — should be flagged as a warning. Reserve C2_R2 errors for sub-tactics with no logical connection whatsoever. If the sub-tactic overlaps with the tactic's theme but introduces an out-of-scope angle, flag here.
+> Flag: "Sub-Tactic '{sub_tactic}' under '{tactic}' is loosely connected — '{out_of_scope_part}' extends beyond the tactic's scope. Suggest: '{fix}'."
+
+**C1_R10 — Signal Loose Relevance [WARNING]**
+A signal that is loosely or only tangentially relevant to its parent sub-tactic — but not clearly wrong — should be flagged as a warning. Reserve C2_R3 errors for signals that are clearly out of place. If the signal could fit the sub-tactic under a stretch interpretation, flag here instead.
+> Flag: "Signal '{signal}' under '{sub_tactic}' is loosely relevant — it targets '{actual_content}' which is tangential to the sub-tactic's focus. Consider relocating to '{better_sub_tactic}' or replacing with '{suggestion}'."
+
 ---
 
 ## CHECK 2: TARGETING & BRIEF ALIGNMENT
 ### THE ONLY CHECK WITH ERRORS. 3 rules. Error count here = training label.
 
 **HOW TO EVALUATE — READ THIS BEFORE APPLYING ANY C2 RULE:**
-Do NOT judge a tactic name in isolation. Always evaluate top-down: read the tactic name, then examine every sub-tactic and every signal beneath it. The sub-tactics and signals are evidence of what the tactic actually targets. A broad or ambiguous tactic name may be fully justified by specific sub-tactics and signals beneath it. Only flag an error when — after reviewing the full tactic tree — you cannot construct a logical rationale linking it to the campaign brief.
+Do NOT judge a tactic name in isolation. Always evaluate top-down: read the tactic name, then examine every sub-tactic and every signal beneath it. The sub-tactics and signals are evidence of what the tactic actually targets. A broad or ambiguous tactic name may be fully justified by specific sub-tactics and signals beneath it. Only flag a CHECK 2 error when — after reviewing the full tactic tree — the misalignment is clear and unambiguous with no logical rationale linking it to the campaign brief. Partial misalignments, imprecise naming, and loose placements belong in CHECK 1 warnings (C1_R8, C1_R9, C1_R10).
 
 When flagging an error, your reasoning must:
 1. Identify what part (if any) of the tactic/sub-tactic/signal IS relevant to the brief and why
