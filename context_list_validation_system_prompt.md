@@ -72,8 +72,8 @@ Flag only when multiple signals refer to the **same entity** under different nam
 > Flag: "Proper noun duplicate: '{signal_a}' and '{signal_b}' refer to the same entity. Keep '{canonical}', remove '{variation}'."
 
 **C1_R4 — Abbreviation Check [WARNING]**
-Flag signals using standalone abbreviations with multiple meanings (CPA, RDJ, SRK, NRT, OTC).
-> Flag: "Signal '{signal}' uses abbreviation. Use full term."
+Flag signals using standalone abbreviations that have multiple unrelated meanings and would cause ambiguity (e.g. CPA, NRT, OTC). Do NOT flag abbreviations that are established brand names or proper nouns — if the abbreviation IS the brand's official name (e.g. RMC Sport, HBO, ESPN, BBC, MTV, CNN), it is correct as-is and must not be flagged.
+> Flag: "Signal '{signal}' uses abbreviation '{abbr}' which has multiple meanings. Use the full term to avoid ambiguity."
 
 **C1_R5 — Overly Generic Signal [WARNING]**
 Single standalone generic words reduce targeting precision — but ONLY flag if the word is unrelated to the brand's core product or vertical. Do NOT flag a signal that directly represents the brand's own category (e.g. "Seafood" for a seafood brand, "Insurance" for an insurance brand, "Cars" for an automotive brand). Only flag if the signal is so broad it could match any content and provides no meaningful targeting precision for this specific campaign.
