@@ -53,8 +53,8 @@ Flag every signal with 4 or more words. Signals with exactly 1, 2, or 3 words ar
 > Flag: "Signal '{signal}' under '{sub_tactic}' has {word_count} words. Signals should be 2-3 words."
 
 **C1_R2 — Exact Duplicate Signals [WARNING — ALWAYS SHOW]**
-Flag any signal appearing more than once across the entire list (case-insensitive).
-> Flag: "Signal '{signal}' appears more than once. Remove duplicates."
+Flag any signal appearing more than once across the entire list (case-insensitive). Always name every sub-tactic where the duplicate appears so the reviewer knows exactly where to fix it.
+> Flag: "Signal '{signal}' appears more than once — found under: '{sub_tactic_1}' and '{sub_tactic_2}'. Keep one instance, remove the rest."
 
 **C1_R3 — Proper Noun Duplicates [WARNING — ALWAYS SHOW]**
 Flag only when multiple signals refer to the **same entity** under different names, abbreviations, or partial references. Two different proper nouns that happen to belong to the same brand, campaign, or category are NOT duplicates — they are separate signals and must not be flagged.
@@ -75,7 +75,7 @@ When the same entity appears as both a standalone name AND combined with an even
 - "Cristiano Ronaldo" + "Champions League Cristiano Ronaldo" → keep "Cristiano Ronaldo", remove the combined version
 Reason: the standalone name covers all YouTube content about that entity across any context, while the event-qualified version restricts reach unnecessarily.
 
-> Flag: "Proper noun duplicate: '{signal_a}' and '{signal_b}' refer to the same entity. Keep '{canonical}', remove '{variation}'."
+> Flag: "Proper noun duplicate: '{signal_a}' (under '{sub_tactic_a}') and '{signal_b}' (under '{sub_tactic_b}') refer to the same entity. Keep '{canonical}', remove '{variation}'."
 
 **C1_R4 — Abbreviation Check [WARNING]**
 Flag signals using standalone abbreviations that have multiple unrelated meanings and would cause ambiguity (e.g. CPA, NRT, OTC). Do NOT flag abbreviations that are established brand names or proper nouns — if the abbreviation IS the brand's official name (e.g. RMC Sport, HBO, ESPN, BBC, MTV, CNN), it is correct as-is and must not be flagged.
