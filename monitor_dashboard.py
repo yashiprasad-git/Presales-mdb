@@ -570,12 +570,31 @@ def main():
 
                         if warnings:
                             st.markdown("**🟡 Warnings**")
-                            for w in warnings:
+                            # Group C1_R2 and C1_R3 into a single "Duplicate Signals" section
+                            dup_rules   = {"Exact Duplicate Signals", "Duplicate Signal Detection - Exact",
+                                           "Proper Noun Duplicates", "Duplicate Signal Detection - Proper Nouns"}
+                            dup_items   = [w for w in warnings if w["rule"] in dup_rules]
+                            other_warns = [w for w in warnings if w["rule"] not in dup_rules]
+
+                            for w in other_warns:
                                 st.markdown(f"**{w['rule']}**")
                                 if w["reasoning"]:
                                     st.write(w["reasoning"])
                                 if w["affected"]:
                                     st.caption("Affected: " + ", ".join(str(a) for a in w["affected"]))
+                                st.markdown("---")
+
+                            if dup_items:
+                                st.markdown("**Duplicate Signals**")
+                                counter = 1
+                                for w in dup_items:
+                                    if w["reasoning"]:
+                                        st.write(f"{counter}. {w['reasoning']}")
+                                        counter += 1
+                                    elif w["affected"]:
+                                        for item in w["affected"]:
+                                            st.write(f"{counter}. {item}")
+                                            counter += 1
                                 st.markdown("---")
 
                         if recs:
