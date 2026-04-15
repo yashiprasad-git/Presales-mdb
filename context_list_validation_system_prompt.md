@@ -82,7 +82,7 @@ Flag signals using standalone abbreviations that have multiple unrelated meaning
 > Flag: "Signal '{signal}' uses abbreviation '{abbr}' which has multiple meanings. Use the full term to avoid ambiguity."
 
 **C1_R5 — Overly Generic Signal [WARNING]**
-Single standalone generic words reduce targeting precision — but ONLY flag if the word is unrelated to the brand's core product or vertical. Do NOT flag a signal that directly represents the brand's own category (e.g. "Seafood" for a seafood brand, "Insurance" for an insurance brand, "Cars" for an automotive brand). Only flag if the signal is so broad it could match any content and provides no meaningful targeting precision for this specific campaign.
+Single standalone generic words reduce targeting precision — but ONLY flag if the word is unrelated to the brand's core product, vertical, or product portfolio. Do NOT flag a signal that directly represents the brand's own category, product line, or any product the brand actually makes or sells (e.g. "Seafood" for a seafood brand, "Conditioner" for a hair care brand, "Insurance" for an insurance brand, "Cars" for an automotive brand). The audience searching for that term IS the target audience. Only flag if the signal is so broad it could match any content completely unrelated to the brand's business.
 > Flag: "Signal '{signal}' is too generic for this campaign. Suggest: '{specific_alternative}'."
 
 ---
