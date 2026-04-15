@@ -94,7 +94,8 @@ def _get_campaigns_needing_validation(conn) -> List[Dict]:
 
 def cleanup_invalid_context_rows(conn) -> List[str]:
     """
-    Find campaigns where ALL context_rows have empty tactic_en (non-standard format).
+    Find campaigns where context_rows are missing tactic_en OR missing signal_en
+    across ALL rows (non-standard format).
     For each:
       - Delete the unusable context_rows
       - Reset context_status to '❌ Context list not in standard format'
@@ -104,6 +105,7 @@ def cleanup_invalid_context_rows(conn) -> List[str]:
     lines: List[str] = []
 
     with conn.cursor() as cur:
+        # Campaigns where ALL rows have empty tactic_en
         cur.execute("""
             SELECT DISTINCT monday_item_id
             FROM context_rows
@@ -113,7 +115,21 @@ def cleanup_invalid_context_rows(conn) -> List[str]:
                 WHERE tactic_en IS NOT NULL AND BTRIM(tactic_en) != ''
             )
         """)
-        bad_ids = [row[0] for row in cur.fetchall()]
+        bad_tactic = [row[0] for row in cur.fetchall()]
+
+        # Campaigns where ALL rows have empty signal_en
+        cur.execute("""
+            SELECT DISTINCT monday_item_id
+            FROM context_rows
+            WHERE monday_item_id NOT IN (
+                SELECT DISTINCT monday_item_id
+                FROM context_rows
+                WHERE signal_en IS NOT NULL AND BTRIM(signal_en) != ''
+            )
+        """)
+        bad_signal = [row[0] for row in cur.fetchall()]
+
+    bad_ids = list(set(bad_tactic + bad_signal))
 
     if not bad_ids:
         return lines
