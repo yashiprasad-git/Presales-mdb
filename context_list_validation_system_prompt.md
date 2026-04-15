@@ -112,7 +112,10 @@ Exempt any tactic whose name contains or closely matches these terms (case-insen
 - Brand / Master Brand / Brand Identity / Brand Story / Brand Awareness / Brand Innovation / Main Brand
 - Conquest / Brand Conquest
 - Competition / Competitors / Competitor Brands / Competitor Products
-- Any tactic clearly intended to capture brand-owned, competitor, or product-level keywords
+- Creators / Content Creators / YouTube Creators / Muses / Influencers / Ambassadors / YouTube Channels / Channels / KOLs / Key Opinion Leaders
+- Any tactic clearly intended to capture brand-owned, competitor, product-level, or creator/influencer/channel keywords
+
+These creator/influencer/channel tactics exist to capture content from specific creators or channels in a given domain. The tactic name alone will never link to the campaign brief — that is intentional and correct.
 
 If a tactic falls into this category: skip all C2 checks and do not mention it in C3_R3 recommendations. However, CHECK 1 warnings (signal length, duplicates, abbreviations etc.) still apply normally to signals within these tactics.
 
