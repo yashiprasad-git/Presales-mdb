@@ -113,10 +113,12 @@ Ask only one question: is this sub-tactic a logical subcategory of its parent ta
 > Flag: "Sub-Tactic '{sub_tactic}' is not a logical subcategory of '{tactic}' because [taxonomic reason]. Suggest: '{fix}'."
 
 **C2_R3 — Signal Quality & Relevance [ERROR]**
+Check the signal against its parent sub-tactic ONLY. Do NOT evaluate the signal against the campaign brief — brief alignment is C2_R1's responsibility. A signal that doesn't mention the campaign's specific product or condition is NOT an error if it fits its sub-tactic.
+
 Flag a signal as an error if ANY of these three conditions are true:
-1. **Not relevant to sub-tactic** — the signal does not identify YouTube content that fits its parent sub-tactic
+1. **Not relevant to sub-tactic** — the signal does not identify YouTube content that fits its parent sub-tactic. Ask: "Would YouTube content matching this signal fit under this sub-tactic?" If yes, do not flag.
 2. **Not a recognizable YouTube content category** — the signal is not a term that would surface real YouTube content (e.g. internal jargon, vague phrases, made-up terms)
-3. **Extremely generic** — the signal is so broad it provides no meaningful targeting precision (e.g. single words like "health", "food", "sports" or phrases so vague they match everything)
+3. **Extremely generic** — the signal is so broad it provides no meaningful targeting precision (e.g. single words like "health", "food", "sports" or phrases so vague they match everything). Brand names, locations, and specific named entities are never generic even if they don't mention the campaign vertical.
 
 Note: moderately generic signals belong in C1_R5 (warning). C2_R3 is for signals so generic they are effectively useless for targeting.
 > Flag: "Signal '{signal}' under '{sub_tactic}': [which condition triggered and why]. Suggest: [specific replacement or remove]."
