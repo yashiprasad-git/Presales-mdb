@@ -57,11 +57,19 @@ Flag any signal appearing more than once across the entire list (case-insensitiv
 > Flag: "Signal '{signal}' appears more than once. Remove duplicates."
 
 **C1_R3 — Proper Noun Duplicates [WARNING — ALWAYS SHOW]**
-For celebrities, brands, teams, channels — only the canonical full name stays. Short forms, nicknames, name variations are all duplicates.
-- Shah Rukh Khan + SRK + King Khan → keep only Shah Rukh Khan
-- Kylian Mbappe + Mbappe Goals + Mbappe Matches → keep only Kylian Mbappe
-- Robert Downey Junior + RDJ → keep only Robert Downey Junior
-> Flag: "Proper noun duplicate: keep '{canonical}', remove {variations}."
+Flag only when multiple signals refer to the **same entity** under different names, abbreviations, or partial references. Two different proper nouns that happen to belong to the same brand, campaign, or category are NOT duplicates — they are separate signals and must not be flagged.
+
+✓ Flag these (same entity, multiple references):
+- Shah Rukh Khan + SRK + King Khan → same person, keep only Shah Rukh Khan
+- Kylian Mbappe + Mbappe Goals + Mbappe Matches → same person, keep only Kylian Mbappe
+- Robert Downey Junior + RDJ → same person, keep only Robert Downey Junior
+
+✗ Do NOT flag these (different entities, same brand universe):
+- "Rodolfo Langostino" + "The Captain" → different brand characters, not duplicates
+- "Pepsi" + "Mountain Dew" → different products under same parent company, not duplicates
+- "Nike Air Max" + "Nike React" → different product lines, not duplicates
+
+> Flag: "Proper noun duplicate: '{signal_a}' and '{signal_b}' refer to the same entity. Keep '{canonical}', remove '{variation}'."
 
 **C1_R4 — Abbreviation Check [WARNING]**
 Flag signals using standalone abbreviations with multiple meanings (CPA, RDJ, SRK, NRT, OTC).
