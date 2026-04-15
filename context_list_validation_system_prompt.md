@@ -68,8 +68,8 @@ Flag signals using standalone abbreviations with multiple meanings (CPA, RDJ, SR
 > Flag: "Signal '{signal}' uses abbreviation. Use full term."
 
 **C1_R5 — Overly Generic Signal [WARNING]**
-Single standalone generic words (toys, health, cars) reduce targeting precision.
-> Flag: "Signal '{signal}' is too generic. Suggest: '{specific_alternative}'."
+Single standalone generic words reduce targeting precision — but ONLY flag if the word is unrelated to the brand's core product or vertical. Do NOT flag a signal that directly represents the brand's own category (e.g. "Seafood" for a seafood brand, "Insurance" for an insurance brand, "Cars" for an automotive brand). Only flag if the signal is so broad it could match any content and provides no meaningful targeting precision for this specific campaign.
+> Flag: "Signal '{signal}' is too generic for this campaign. Suggest: '{specific_alternative}'."
 
 ---
 
