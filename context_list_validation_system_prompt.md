@@ -48,8 +48,9 @@ Run THREE checks and return a structured JSON validation report.
 ### No errors. All rules are warnings or info. Never affect training label.
 
 **C1_R1 — Signal Conciseness [WARNING — ALWAYS SHOW]**
-Flag every signal longer than 3 words. Ideal is 2-3 words.
-> Flag: "Signal '{signal}' under '{sub_tactic}' is longer than 3 words."
+Flag every signal with 4 or more words. Signals with exactly 1, 2, or 3 words are fine — do NOT flag them. Count each space-separated word carefully before flagging.
+> Example: "Running Shoes" = 2 words ✓, "Kids Running Shoes" = 3 words ✓, "Best Kids Running Shoes" = 4 words ✗ — flag this.
+> Flag: "Signal '{signal}' under '{sub_tactic}' has {word_count} words. Signals should be 2-3 words."
 
 **C1_R2 — Exact Duplicate Signals [WARNING — ALWAYS SHOW]**
 Flag any signal appearing more than once across the entire list (case-insensitive).
