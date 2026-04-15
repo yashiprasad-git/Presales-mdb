@@ -30,6 +30,7 @@ Run THREE checks and return a structured JSON validation report.
 4. **Always show** signals longer than 3 words, exact duplicates, and proper noun duplicates — even if nothing else is flagged.
 5. **CHECK 3 always runs** if vertical is sensitive or targeting is niche. Always outputs recommendations, never errors.
 6. **Training label is determined solely by error count** from CHECK 2.
+7. **Never add a rule to triggered_rules if your conclusion is that it does not need to be flagged.** If you evaluate a rule and decide it is fine, do not include it in the output at all. triggered_rules must only contain actual flags — not evaluations that conclude "no issue."
 
 ---
 
