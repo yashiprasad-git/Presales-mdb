@@ -48,12 +48,20 @@ Run THREE checks and return a structured JSON validation report.
 ### No errors. All rules are warnings or info. Never affect training label.
 
 **C1_R1 — Signal Conciseness [WARNING — ALWAYS SHOW]**
-Flag every signal with 4 or more words. Signals with exactly 1, 2, or 3 words are fine — do NOT flag them. Count each space-separated word carefully before flagging.
+Flag signals with 4 or more words — but ONLY if the signal is a generic descriptive phrase. Do NOT flag any proper noun regardless of word count. Proper nouns include:
+- Person names (celebrities, athletes, public figures)
+- Brand names and product names / SKUs
+- Place names, city names, venue names
+- Organisation names, team names, channel names
+- Event names (tournaments, shows, campaigns)
 
-Do NOT flag signals that are official product names, SKUs, or model names — a brand's specific product name is intentionally detailed (e.g. "Nulo Freestyle Adult Turkey & Sweet Potato" is a real product SKU, not a generic phrase). Shortening it would destroy the targeting precision.
+The rule is: if the signal contains or IS a proper noun, length does not matter. Only flag if the signal is a generic descriptive phrase with 4+ words that could be shortened without losing meaning.
+
+Count each space-separated word carefully. Signals with 1, 2, or 3 words are always fine regardless.
 
 When suggesting a replacement, the suggestion MUST be 2-3 words. Never suggest a replacement that is itself 4 or more words.
 > Example: "Running Shoes" = 2 words ✓, "Kids Running Shoes" = 3 words ✓, "Best Kids Running Shoes" = 4 words ✗ — flag this.
+> Do NOT flag: "Nulo Freestyle Adult Turkey & Sweet Potato" (product SKU), "Kylian Mbappe Goals and Highlights" (person name), "Blue Buffalo Wilderness Grain-Free Turkey & Chicken" (product name).
 > Flag: "Signal '{signal}' under '{sub_tactic}' has {word_count} words. Suggest: '{2_or_3_word_alternative}'."
 
 **C1_R2 — Exact Duplicate Signals [WARNING — ALWAYS SHOW]**
