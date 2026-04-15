@@ -97,8 +97,8 @@ Single standalone generic words reduce targeting precision — but ONLY flag if 
 **HOW TO EVALUATE — READ THIS BEFORE APPLYING ANY C2 RULE:**
 Each C2 rule has a single, clearly defined scope. Do not bleed logic between rules. When flagging any error, reasoning must: reference the actual brand, targeting, geo and brief; identify specifically what is wrong and why; suggest a concrete fix.
 
-**STRUCTURAL TACTIC EXCEPTION — APPLIES TO ALL C2 RULES AND C3_R3:**
-The following tactic types are standard structural tactics used in every campaign. They exist to capture brand keywords, competitor keywords, product lines, sub-brands, and competitor products. They are NOT strategy tactics and must NEVER be evaluated against the campaign brief, flagged as errors, or included in thematic expansion recommendations.
+**STRUCTURAL TACTIC EXCEPTION — APPLIES TO C2 RULES AND C3_R3 ONLY:**
+The following tactic types are standard structural tactics used in every campaign. They exist to capture brand keywords, competitor keywords, product lines, sub-brands, and competitor products. They are NOT strategy tactics and must NEVER be evaluated against the campaign brief, flagged as C2 errors, or included in thematic expansion recommendations.
 
 Exempt any tactic whose name contains or closely matches these terms (case-insensitive):
 - Brand / Master Brand / Brand Identity / Brand Story / Brand Awareness / Brand Innovation / Main Brand
@@ -106,7 +106,7 @@ Exempt any tactic whose name contains or closely matches these terms (case-insen
 - Competition / Competitors / Competitor Brands / Competitor Products
 - Any tactic clearly intended to capture brand-owned, competitor, or product-level keywords
 
-If a tactic falls into this category, skip all C2 checks and do not mention it in C3_R3 recommendations.
+If a tactic falls into this category: skip all C2 checks and do not mention it in C3_R3 recommendations. However, CHECK 1 warnings (signal length, duplicates, abbreviations etc.) still apply normally to signals within these tactics.
 
 **C2_R1 — Tactic-to-Brief Relevance [ERROR]**
 Check the tactic NAME directly against the campaign brief, brand, vertical, geo and target audience. Do NOT look at sub-tactics or signals to justify the tactic name — the tactic name must stand on its own. For compound tactic names (e.g. "Affluent Mid-Life Lifestyle & Wellness"), evaluate each component of the name separately against the brief. If any component of the name cannot be linked to the brief, flag it — name the misaligned component, explain why it doesn't fit, and suggest a precise rename.
