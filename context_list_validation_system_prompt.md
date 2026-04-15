@@ -69,6 +69,12 @@ Flag only when multiple signals refer to the **same entity** under different nam
 - "Pepsi" + "Mountain Dew" → different products under same parent company, not duplicates
 - "Nike Air Max" + "Nike React" → different product lines, not duplicates
 
+**Canonical name rule — standalone name always wins over event/location-qualified name:**
+When the same entity appears as both a standalone name AND combined with an event or location qualifier, the standalone name is canonical. The combined version is too restrictive and must be removed.
+- "Novak Djokovic" + "Wimbledon Novak Djokovic" → keep "Novak Djokovic", remove "Wimbledon Novak Djokovic"
+- "Cristiano Ronaldo" + "Champions League Cristiano Ronaldo" → keep "Cristiano Ronaldo", remove the combined version
+Reason: the standalone name covers all YouTube content about that entity across any context, while the event-qualified version restricts reach unnecessarily.
+
 > Flag: "Proper noun duplicate: '{signal_a}' and '{signal_b}' refer to the same entity. Keep '{canonical}', remove '{variation}'."
 
 **C1_R4 — Abbreviation Check [WARNING]**
