@@ -570,20 +570,26 @@ def main():
 
                         if warnings:
                             st.markdown("**🟡 Warnings**")
-                            # Group C1_R2 and C1_R3 into a single "Duplicate Signals" section
-                            dup_rules   = {"Exact Duplicate Signals", "Duplicate Signal Detection - Exact",
-                                           "Proper Noun Duplicates", "Duplicate Signal Detection - Proper Nouns"}
-                            dup_items   = [w for w in warnings if w["rule"] in dup_rules]
-                            other_warns = [w for w in warnings if w["rule"] not in dup_rules]
 
-                            for w in other_warns:
-                                st.markdown(f"**{w['rule']}**")
-                                if w["reasoning"]:
-                                    st.write(w["reasoning"])
-                                if w["affected"]:
-                                    st.caption("Affected: " + ", ".join(str(a) for a in w["affected"]))
+                            dup_rules        = {"Exact Duplicate Signals", "Duplicate Signal Detection - Exact",
+                                                "Proper Noun Duplicates", "Duplicate Signal Detection - Proper Nouns"}
+                            concise_rules    = {"Signal Conciseness", "Signal Conciseness Check"}
+
+                            dup_items        = [w for w in warnings if w["rule"] in dup_rules]
+                            concise_items    = [w for w in warnings if w["rule"] in concise_rules]
+                            other_warns      = [w for w in warnings if w["rule"] not in dup_rules | concise_rules]
+
+                            # Grouped: Signal Conciseness
+                            if concise_items:
+                                st.markdown("**Signal Conciseness**")
+                                for i, w in enumerate(concise_items, 1):
+                                    if w["reasoning"]:
+                                        st.write(f"{i}. {w['reasoning']}")
+                                    elif w["affected"]:
+                                        st.write(f"{i}. " + ", ".join(str(a) for a in w["affected"]))
                                 st.markdown("---")
 
+                            # Grouped: Duplicate Signals
                             if dup_items:
                                 st.markdown("**Duplicate Signals**")
                                 counter = 1
@@ -595,6 +601,15 @@ def main():
                                         for item in w["affected"]:
                                             st.write(f"{counter}. {item}")
                                             counter += 1
+                                st.markdown("---")
+
+                            # All other warnings individually
+                            for w in other_warns:
+                                st.markdown(f"**{w['rule']}**")
+                                if w["reasoning"]:
+                                    st.write(w["reasoning"])
+                                if w["affected"]:
+                                    st.caption("Affected: " + ", ".join(str(a) for a in w["affected"]))
                                 st.markdown("---")
 
                         if recs:
