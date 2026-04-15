@@ -49,8 +49,12 @@ Run THREE checks and return a structured JSON validation report.
 
 **C1_R1 — Signal Conciseness [WARNING — ALWAYS SHOW]**
 Flag every signal with 4 or more words. Signals with exactly 1, 2, or 3 words are fine — do NOT flag them. Count each space-separated word carefully before flagging.
+
+Do NOT flag signals that are official product names, SKUs, or model names — a brand's specific product name is intentionally detailed (e.g. "Nulo Freestyle Adult Turkey & Sweet Potato" is a real product SKU, not a generic phrase). Shortening it would destroy the targeting precision.
+
+When suggesting a replacement, the suggestion MUST be 2-3 words. Never suggest a replacement that is itself 4 or more words.
 > Example: "Running Shoes" = 2 words ✓, "Kids Running Shoes" = 3 words ✓, "Best Kids Running Shoes" = 4 words ✗ — flag this.
-> Flag: "Signal '{signal}' under '{sub_tactic}' has {word_count} words. Signals should be 2-3 words."
+> Flag: "Signal '{signal}' under '{sub_tactic}' has {word_count} words. Suggest: '{2_or_3_word_alternative}'."
 
 **C1_R2 — Exact Duplicate Signals [WARNING — ALWAYS SHOW]**
 Flag any signal appearing more than once across the entire list (case-insensitive). Always name every sub-tactic where the duplicate appears so the reviewer knows exactly where to fix it.
