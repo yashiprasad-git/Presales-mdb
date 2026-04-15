@@ -188,8 +188,10 @@ def _reconstruct_context_list(conn, item_id: str) -> Dict:
         """, (item_id,))
         rows = [dict(r) for r in cur.fetchall()]
 
-    # Build ordered nested dict: tactic → {subtactic → [signals]}
+    # Build ordered nested dict: tactic → {subtactic → [(signal, location)]}
     tactics_map: Dict[str, Dict[str, List[str]]] = {}
+    all_signals: List[tuple] = []  # (signal_lower, tactic, subtactic, signal_original)
+
     for row in rows:
         tactic    = (row.get("tactic_en")    or "").strip()
         subtactic = (row.get("subtactic_en") or "").strip()
@@ -203,6 +205,20 @@ def _reconstruct_context_list(conn, item_id: str) -> Dict:
             tactics_map[tactic][st_key] = []
         if signal:
             tactics_map[tactic][st_key].append(signal)
+            all_signals.append((signal.lower(), tactic, st_key, signal))
+
+    # Pre-compute exact duplicates (case-insensitive) with locations
+    from collections import defaultdict
+    signal_locations: Dict[str, List[str]] = defaultdict(list)
+    for sig_lower, tactic, st_key, sig_orig in all_signals:
+        loc = f"'{st_key}' under '{tactic}'"
+        if loc not in signal_locations[sig_lower]:
+            signal_locations[sig_lower].append(loc)
+
+    exact_duplicates = {
+        sig: locs for sig, locs in signal_locations.items()
+        if len(locs) > 1
+    }
 
     tactics_list = [
         {
@@ -211,7 +227,12 @@ def _reconstruct_context_list(conn, item_id: str) -> Dict:
                 {
                     "sub_tactic_name": st_name,
                     "signals": [
-                        {"text": s, "word_count": len(s.split())}
+                        {
+                            "text": s,
+                            "word_count": len(s.split()),
+                            "is_exact_duplicate": s.lower() in exact_duplicates,
+                            "duplicate_locations": exact_duplicates.get(s.lower(), []),
+                        }
                         for s in signals
                     ],
                 }

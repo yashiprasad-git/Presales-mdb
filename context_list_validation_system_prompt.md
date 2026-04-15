@@ -66,8 +66,8 @@ When suggesting a replacement, the suggestion MUST be 2-3 words. Never suggest a
 > Flag: "Signal '{signal}' under '{sub_tactic}' has {word_count} words. Suggest: '{2_or_3_word_alternative}'."
 
 **C1_R2 — Exact Duplicate Signals [WARNING — ALWAYS SHOW]**
-Flag any signal appearing more than once across the entire list (case-insensitive). Always name every sub-tactic where the duplicate appears so the reviewer knows exactly where to fix it.
-> Flag: "Signal '{signal}' appears more than once — found under: '{sub_tactic_1}' and '{sub_tactic_2}'. Keep one instance, remove the rest."
+Each signal in the input includes a pre-computed "is_exact_duplicate" boolean and "duplicate_locations" list. Use these values directly — do NOT search for duplicates yourself. Only flag a signal if "is_exact_duplicate" is true. The "duplicate_locations" field already lists every sub-tactic where the signal appears — include all of them in your reasoning.
+> Flag: "Signal '{signal}' appears more than once — found under: {duplicate_locations}. Keep one instance, remove the rest."
 
 **C1_R3 — Proper Noun Duplicates [WARNING — ALWAYS SHOW]**
 Flag only when multiple signals refer to the **same entity** under different names, abbreviations, or partial references. Two different proper nouns that happen to belong to the same brand, campaign, or category are NOT duplicates — they are separate signals and must not be flagged.
