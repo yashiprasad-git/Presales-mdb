@@ -208,7 +208,13 @@ def _reconstruct_context_list(conn, item_id: str) -> Dict:
         {
             "tactic_name": tactic_name,
             "sub_tactics": [
-                {"sub_tactic_name": st_name, "signals": signals}
+                {
+                    "sub_tactic_name": st_name,
+                    "signals": [
+                        {"text": s, "word_count": len(s.split())}
+                        for s in signals
+                    ],
+                }
                 for st_name, signals in subtactics.items()
             ],
         }

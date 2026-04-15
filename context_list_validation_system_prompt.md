@@ -48,7 +48,7 @@ Run THREE checks and return a structured JSON validation report.
 ### No errors. All rules are warnings or info. Never affect training label.
 
 **C1_R1 — Signal Conciseness [WARNING — ALWAYS SHOW]**
-Flag signals with 4 or more words — but ONLY if the signal is a generic descriptive phrase. Do NOT flag any proper noun regardless of word count. Proper nouns include:
+Each signal in the input includes a pre-computed "word_count" field — use this value directly. Do NOT count words yourself. Only flag if word_count >= 4 AND the signal is a generic descriptive phrase. Do NOT flag any proper noun regardless of word count. Proper nouns include:
 - Person names (celebrities, athletes, public figures)
 - Brand names and product names / SKUs
 - Place names, city names, venue names
