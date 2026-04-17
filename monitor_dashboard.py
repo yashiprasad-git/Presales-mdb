@@ -193,15 +193,13 @@ def _run_validation_step(conn) -> str:
         openai_key = ""
     if not openai_key:
         return "⚠️ Validation skipped — OPENAI_API_KEY not set in Streamlit secrets."
-    # DEBUG: show last 6 chars of key being used — remove once confirmed working
-    key_hint = f"...{openai_key[-6:]}" if len(openai_key) >= 6 else "(too short)"
     try:
         from context_validator import run_validation, init_validation_schema
         init_validation_schema(conn)
         result = run_validation(conn, openai_api_key=openai_key)
-        return f"[DEBUG] Key used: {key_hint}\n\n{result}"
+        return result
     except Exception as e:
-        return f"[DEBUG] Key used: {key_hint}\n⚠️ Validation error: {e}"
+        return f"⚠️ Validation error: {e}"
 
 
 def main():
@@ -213,6 +211,7 @@ def main():
     st.session_state.setdefault("last_db_update_output", "")
     st.session_state.setdefault("last_retry_output", "")
     st.session_state.setdefault("last_error", "")
+    st.session_state.setdefault("synthesis_result", None)
 
     # ── Sidebar — manual run ────────────────────────────────────────────
     with st.sidebar:
@@ -489,6 +488,19 @@ def main():
             st.error(f"Could not load validation results: {e}")
             df_val = None
 
+        # ── Feedback helpers ─────────────────────────────────────────────
+        _fb_available = False
+        try:
+            from feedback_synthesizer import (
+                init_feedback_schema, save_feedback, get_feedback, delete_feedback,
+                get_all_feedback, feedback_count, synthesize_feedback,
+                apply_prompt_override, revert_prompt_override, get_prompt_override_info,
+            )
+            init_feedback_schema(conn)
+            _fb_available = True
+        except Exception:
+            pass
+
         if df_val is not None:
             if df_val.empty:
                 st.info("No validation results yet. Run DB Update or Retry to trigger validation.")
@@ -504,6 +516,70 @@ def main():
                     "NEGATIVE_EXAMPLE": "🟡 NEGATIVE EXAMPLE",
                     "DO_NOT_STORE":     "🔴 DO NOT STORE",
                 }
+
+                # ── Synthesize Feedback section ──────────────────────────
+                if _fb_available:
+                    fb_count = feedback_count(conn)
+                    override_info = get_prompt_override_info(conn)
+
+                    if override_info:
+                        st.info(
+                            f"ℹ️ Validation is using a **DB prompt override** "
+                            f"(synthesized {override_info.get('synthesized_at_utc', '')}). "
+                            f"{override_info.get('summary_of_changes', '')}"
+                        )
+                        if st.button("↩️ Revert to File-Based Prompt", key="btn_revert_prompt"):
+                            revert_prompt_override(conn)
+                            st.success("Reverted — next validation will use the file-based system prompt.")
+                            st.rerun()
+
+                    if fb_count > 0:
+                        st.markdown(
+                            f"💬 **{fb_count}** campaign(s) have feedback. "
+                            "Review the feedback below, then synthesize to update the validation prompt."
+                        )
+                        if st.button("🧠 Synthesize Feedback into Prompt Update", key="btn_synthesize"):
+                            openai_key = ""
+                            try:
+                                openai_key = st.secrets["OPENAI_API_KEY"]
+                            except Exception:
+                                pass
+                            if not openai_key:
+                                st.error("OPENAI_API_KEY not set in Streamlit secrets.")
+                            else:
+                                try:
+                                    with st.spinner("Synthesizing feedback with GPT-4o…"):
+                                        new_prompt, summary, change_bullets = synthesize_feedback(conn, openai_key)
+                                    st.session_state["synthesis_result"] = {
+                                        "new_prompt":     new_prompt,
+                                        "summary":        summary,
+                                        "change_bullets": change_bullets,
+                                    }
+                                except Exception as e:
+                                    st.error(f"Synthesis failed: {e}")
+
+                    if st.session_state.get("synthesis_result"):
+                        res = st.session_state["synthesis_result"]
+                        st.markdown("### Synthesis Result")
+                        st.markdown(f"**Summary:** {res['summary']}")
+                        if res["change_bullets"]:
+                            st.markdown("**Changes made:**")
+                            for b in res["change_bullets"]:
+                                st.markdown(f"- {b}")
+                        with st.expander("📄 Preview Updated System Prompt", expanded=False):
+                            st.text(res["new_prompt"])
+                        col_a, col_d = st.columns([1, 1])
+                        if col_a.button("✅ Apply Changes", key="btn_apply_synthesis"):
+                            all_fb = get_all_feedback(conn)
+                            apply_prompt_override(conn, res["new_prompt"], res["summary"], all_fb)
+                            st.session_state["synthesis_result"] = None
+                            st.success("Prompt updated! Next validation will use the new system prompt.")
+                            st.rerun()
+                        if col_d.button("🗑️ Discard", key="btn_discard_synthesis"):
+                            st.session_state["synthesis_result"] = None
+                            st.rerun()
+
+                    st.divider()
 
                 # ── Filters ─────────────────────────────────────────────
                 v1, v2, v3 = st.columns([1, 1, 2])
@@ -543,13 +619,23 @@ def main():
                     brand        = row.get("brand_name", "—")
                     region       = row.get("region", "—")
                     validated_at = row.get("validated_at", "")
+                    item_id      = row.get("monday_item_id", "")
                     error_log    = row.get("error_log") or ""
                     if str(error_log).lower() == "nan":
                         error_log = ""
 
                     errors, warnings, recs = _extract_findings(row.get("full_validation_report", ""))
 
-                    with st.expander(f"{status_label}  |  {campaign}  —  {brand}  ({region})", expanded=False):
+                    # Pre-load existing feedback (before expander opens)
+                    existing_feedback = ""
+                    if _fb_available and item_id:
+                        existing_feedback = get_feedback(conn, item_id)
+
+                    fb_indicator = " 💬" if existing_feedback else ""
+                    with st.expander(
+                        f"{status_label}  |  {campaign}  —  {brand}  ({region}){fb_indicator}",
+                        expanded=False,
+                    ):
                         c1, c2, c3 = st.columns(3)
                         c1.markdown(f"**Validation Status**  \n{status_label}")
                         c2.markdown(f"**Training Label**  \n{label_label}")
@@ -622,6 +708,34 @@ def main():
 
                         if not errors and not warnings and not recs and not error_log:
                             st.success("No issues found.")
+
+                        # ── Feedback box ─────────────────────────────────
+                        if _fb_available and item_id:
+                            st.markdown("---")
+                            st.markdown("**💬 Feedback**")
+                            fb_text = st.text_area(
+                                "What did the AI get right or wrong for this campaign?",
+                                value=existing_feedback,
+                                key=f"fb_{item_id}",
+                                placeholder=(
+                                    "e.g. 'Signal X was wrongly flagged — it's a brand name' "
+                                    "or 'Tactic Y should have been an error, not a warning'"
+                                ),
+                                height=100,
+                                label_visibility="collapsed",
+                            )
+                            col_s, col_d, _ = st.columns([1, 1, 3])
+                            if col_s.button("💾 Save", key=f"save_fb_{item_id}"):
+                                if fb_text.strip():
+                                    save_feedback(conn, item_id, campaign, fb_text)
+                                    st.success("Feedback saved.")
+                                    st.rerun()
+                                else:
+                                    st.warning("Feedback is empty — nothing saved.")
+                            if existing_feedback and col_d.button("🗑️ Delete", key=f"del_fb_{item_id}"):
+                                delete_feedback(conn, item_id)
+                                st.success("Feedback deleted.")
+                                st.rerun()
 
     conn.close()
 

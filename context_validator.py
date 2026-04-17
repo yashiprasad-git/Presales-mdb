@@ -261,10 +261,13 @@ def _load_system_prompt() -> str:
     return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def _call_openai_validator(campaign: Dict, context_list: Dict, api_key: str) -> Dict:
+def _call_openai_validator(
+    campaign: Dict, context_list: Dict, api_key: str, system_prompt: str = ""
+) -> Dict:
     if _OpenAI is None:
         raise RuntimeError("openai package not installed. Run: pip install openai")
-    system_prompt = _load_system_prompt()
+    if not system_prompt:
+        system_prompt = _load_system_prompt()
     client = _OpenAI(api_key=api_key)
     campaign_input = {
         "brand":           campaign.get("brand_name")        or "",
@@ -366,6 +369,14 @@ def run_validation(conn, openai_api_key: str) -> str:
         lines.append("Nothing to validate — all campaigns with context lists have already been validated.")
         return "\n".join(lines)
 
+    # Use DB prompt override if available; fall back to file
+    active_system_prompt = ""
+    try:
+        from feedback_synthesizer import get_active_system_prompt
+        active_system_prompt = get_active_system_prompt(conn)
+    except Exception:
+        active_system_prompt = _load_system_prompt()
+
     lines.append(f"Validating {len(campaigns)} campaign(s) using OpenAI (gpt-4o)...\n")
     validated = 0
     errors = 0
@@ -383,7 +394,8 @@ def run_validation(conn, openai_api_key: str) -> str:
                 lines.append(f"  ⏭  Skipped (no tactics after cleanup): {name}")
                 continue
 
-            result = _call_openai_validator(campaign, context_list, openai_api_key)
+            result = _call_openai_validator(campaign, context_list, openai_api_key,
+                                            system_prompt=active_system_prompt)
             _save_validation_result(conn, item_id, campaign, result)
             validated += 1
 
