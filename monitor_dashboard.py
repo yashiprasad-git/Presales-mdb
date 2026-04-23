@@ -490,6 +490,7 @@ def main():
 
         # ── Feedback helpers ─────────────────────────────────────────────
         _fb_available = False
+        _fb_import_error = ""
         try:
             from feedback_synthesizer import (
                 init_feedback_schema, save_feedback, get_feedback, delete_feedback,
@@ -497,10 +498,16 @@ def main():
                 apply_prompt_override, revert_prompt_override, get_prompt_override_info,
                 mark_feedback_processed, get_feedback_status,
             )
-            init_feedback_schema(conn)
             _fb_available = True
-        except Exception:
-            pass
+        except Exception as _e:
+            _fb_import_error = str(_e)
+
+        if _fb_available:
+            try:
+                init_feedback_schema(conn)
+            except Exception as _e:
+                st.warning(f"Feedback schema init failed: {_e}")
+                _fb_available = False
 
         if df_val is not None:
             if df_val.empty:

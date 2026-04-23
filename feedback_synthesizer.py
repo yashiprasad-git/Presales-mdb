@@ -44,11 +44,6 @@ def init_feedback_schema(conn) -> None:
                 is_processed      BOOLEAN DEFAULT FALSE
             );
         """)
-        # Add is_processed to existing tables that predate this column
-        cur.execute("""
-            ALTER TABLE validation_feedback
-            ADD COLUMN IF NOT EXISTS is_processed BOOLEAN DEFAULT FALSE;
-        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS system_prompt_override (
                 id                  SERIAL PRIMARY KEY,
@@ -59,6 +54,18 @@ def init_feedback_schema(conn) -> None:
             );
         """)
     conn.commit()
+
+    # Migrate existing table: add is_processed column if it doesn't exist yet.
+    # Run in a separate block so a duplicate-column error doesn't roll back the above.
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE validation_feedback
+                ADD COLUMN IF NOT EXISTS is_processed BOOLEAN DEFAULT FALSE;
+            """)
+        conn.commit()
+    except Exception:
+        conn.rollback()
 
 
 # ---------------------------------------------------------------------------
