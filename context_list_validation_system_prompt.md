@@ -98,11 +98,19 @@ Flag signals using standalone abbreviations that have multiple unrelated meaning
 Single standalone generic words reduce targeting precision — but ONLY flag if the word is unrelated to the brand's core product, vertical, or product portfolio. Do NOT flag a signal that directly represents the brand's own category, product line, or any product the brand actually makes or sells (e.g. "Seafood" for a seafood brand, "Conditioner" for a hair care brand, "Insurance" for an insurance brand, "Cars" for an automotive brand). The audience searching for that term IS the target audience. Only flag if the signal is so broad it could match any content completely unrelated to the brand's business.
 > Flag: "Signal '{signal}' is too generic for this campaign. Suggest: '{specific_alternative}'."
 
-**C1_R6 — Excessive Use of '&' in Tactic or Sub-Tactic Name [WARNING]**
-Flag any tactic or sub-tactic name that contains **2 or more '&' symbols**. A single '&' is acceptable (e.g. "Health & Wellness"). Multiple '&' symbols make names harder to read and usually indicate that several distinct concepts are being lumped together. When flagging, suggest a concise natural alternative that captures the same intent without multiple '&' connectors — either by using a broader umbrella term or by restructuring the name.
-> Flag: "Tactic/Sub-Tactic '{name}' contains multiple '&' connectors, making it overly compound. Suggest: '{cleaner_alternative}'."
-> Example: "Sports & Fitness & Wellness" → suggest "Sports, Fitness & Wellness" or "Active Lifestyle" depending on context.
-> Do NOT flag names with exactly one '&'.
+**C1_R6 — Excessive Use of '&' in Tactic or Sub-Tactic Names [WARNING]**
+This rule has two independent triggers — check BOTH across the full context list:
+
+**Trigger A — Multiple '&' in a single name:**
+Flag any individual tactic or sub-tactic name that contains **2 or more '&' symbols**. Multiple '&' connectors make names harder to read and usually mean several distinct concepts are being lumped together.
+> Flag: "Tactic/Sub-Tactic '{name}' contains multiple '&' connectors. Suggest: '{cleaner_alternative}'."
+> Example: "Sports & Fitness & Wellness" → "Active Lifestyle" or "Sports, Fitness & Wellness"
+
+**Trigger B — More than 2 names across the list each using '&':**
+Count every tactic AND sub-tactic name in the entire context list that contains at least one '&'. If the total count exceeds 2, flag ALL of them together as a group warning — even if each individual name has only one '&'. Overuse of '&' across the list as a whole signals poor naming discipline.
+> Flag: "X tactic/sub-tactic names across the context list use '&' as a connector (listed below). Overuse of '&' reduces readability. Suggest renaming each without '&': [list each name with its suggested alternative]."
+
+**In both cases:** suggest a clean alternative using plain language — a broader umbrella term, a descriptive phrase, or comma-separated terms where appropriate. The suggested name must not contain '&'.
 
 ---
 
