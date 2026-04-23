@@ -495,7 +495,7 @@ def main():
                 init_feedback_schema, save_feedback, get_feedback, delete_feedback,
                 get_all_feedback, feedback_count, synthesize_feedback,
                 apply_prompt_override, revert_prompt_override, get_prompt_override_info,
-                clear_all_feedback,
+                mark_feedback_processed, get_feedback_status,
             )
             init_feedback_schema(conn)
             _fb_available = True
@@ -573,9 +573,9 @@ def main():
                         if col_a.button("✅ Apply Changes", key="btn_apply_synthesis"):
                             all_fb = get_all_feedback(conn)
                             apply_prompt_override(conn, res["new_prompt"], res["summary"], all_fb)
-                            clear_all_feedback(conn)
+                            mark_feedback_processed(conn)
                             st.session_state["synthesis_result"] = None
-                            st.success("Prompt updated and feedback cleared. Next synthesis will only show new feedback.")
+                            st.success("Prompt updated. Feedback marked as applied — campaign cards will now show ✅ Applied.")
                             st.rerun()
                         if col_d.button("🗑️ Discard", key="btn_discard_synthesis"):
                             st.session_state["synthesis_result"] = None
@@ -628,12 +628,19 @@ def main():
 
                     errors, warnings, recs = _extract_findings(row.get("full_validation_report", ""))
 
-                    # Pre-load existing feedback (before expander opens)
+                    # Pre-load existing feedback and its status (before expander opens)
                     existing_feedback = ""
+                    fb_status = ""
                     if _fb_available and item_id:
                         existing_feedback = get_feedback(conn, item_id)
+                        fb_status = get_feedback_status(conn, item_id)
 
-                    fb_indicator = " 💬" if existing_feedback else ""
+                    if fb_status == "processed":
+                        fb_indicator = " ✅💬"
+                    elif fb_status == "pending":
+                        fb_indicator = " ⏳💬"
+                    else:
+                        fb_indicator = ""
                     with st.expander(
                         f"{status_label}  |  {campaign}  —  {brand}  ({region}){fb_indicator}",
                         expanded=False,
@@ -714,7 +721,13 @@ def main():
                         # ── Feedback box ─────────────────────────────────
                         if _fb_available and item_id:
                             st.markdown("---")
-                            st.markdown("**💬 Feedback**")
+                            if fb_status == "processed":
+                                st.markdown("**💬 Feedback** &nbsp; `✅ Applied in last synthesis`")
+                            elif fb_status == "pending":
+                                st.markdown("**💬 Feedback** &nbsp; `⏳ Pending synthesis`")
+                            else:
+                                st.markdown("**💬 Feedback**")
+
                             fb_text = st.text_area(
                                 "What did the AI get right or wrong for this campaign?",
                                 value=existing_feedback,

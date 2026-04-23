@@ -40,8 +40,14 @@ def init_feedback_schema(conn) -> None:
                 campaign_name     TEXT,
                 feedback_text     TEXT NOT NULL,
                 submitted_at_utc  TEXT NOT NULL,
-                updated_at_utc    TEXT
+                updated_at_utc    TEXT,
+                is_processed      BOOLEAN DEFAULT FALSE
             );
+        """)
+        # Add is_processed to existing tables that predate this column
+        cur.execute("""
+            ALTER TABLE validation_feedback
+            ADD COLUMN IF NOT EXISTS is_processed BOOLEAN DEFAULT FALSE;
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS system_prompt_override (
@@ -64,12 +70,13 @@ def save_feedback(conn, monday_item_id: str, campaign_name: str, feedback_text: 
     with conn.cursor() as cur:
         cur.execute("""
             INSERT INTO validation_feedback
-                (monday_item_id, campaign_name, feedback_text, submitted_at_utc, updated_at_utc)
-            VALUES (%s, %s, %s, %s, %s)
+                (monday_item_id, campaign_name, feedback_text, submitted_at_utc, updated_at_utc, is_processed)
+            VALUES (%s, %s, %s, %s, %s, FALSE)
             ON CONFLICT (monday_item_id) DO UPDATE SET
                 campaign_name    = EXCLUDED.campaign_name,
                 feedback_text    = EXCLUDED.feedback_text,
-                updated_at_utc   = EXCLUDED.updated_at_utc
+                updated_at_utc   = EXCLUDED.updated_at_utc,
+                is_processed     = FALSE
         """, (monday_item_id, campaign_name, feedback_text.strip(), now, now))
     conn.commit()
 
@@ -88,26 +95,43 @@ def get_feedback(conn, monday_item_id: str) -> str:
         return ""
 
 
+def get_feedback_status(conn, monday_item_id: str) -> str:
+    """Return 'processed', 'pending', or '' (no feedback) for a campaign."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT is_processed FROM validation_feedback WHERE monday_item_id = %s",
+                (monday_item_id,)
+            )
+            row = cur.fetchone()
+        if row is None:
+            return ""
+        return "processed" if row[0] else "pending"
+    except Exception:
+        return ""
+
+
 def delete_feedback(conn, monday_item_id: str) -> None:
     with conn.cursor() as cur:
         cur.execute("DELETE FROM validation_feedback WHERE monday_item_id = %s", (monday_item_id,))
     conn.commit()
 
 
-def clear_all_feedback(conn) -> None:
-    """Delete all feedback entries — called after a synthesis is applied."""
+def mark_feedback_processed(conn) -> None:
+    """Mark all pending feedback as processed — called after a synthesis is applied."""
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM validation_feedback")
+        cur.execute("UPDATE validation_feedback SET is_processed = TRUE WHERE is_processed = FALSE")
     conn.commit()
 
 
 def get_all_feedback(conn) -> List[Dict]:
-    """Return all feedback entries ordered by submission time."""
+    """Return only unprocessed (pending) feedback entries ordered by submission time."""
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
                 SELECT monday_item_id, campaign_name, feedback_text, submitted_at_utc
                 FROM validation_feedback
+                WHERE is_processed = FALSE
                 ORDER BY submitted_at_utc ASC
             """)
             return [dict(r) for r in cur.fetchall()]
@@ -116,9 +140,10 @@ def get_all_feedback(conn) -> List[Dict]:
 
 
 def feedback_count(conn) -> int:
+    """Count only pending (unprocessed) feedback entries."""
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM validation_feedback")
+            cur.execute("SELECT COUNT(*) FROM validation_feedback WHERE is_processed = FALSE")
             row = cur.fetchone()
         return int(row[0]) if row else 0
     except Exception:
