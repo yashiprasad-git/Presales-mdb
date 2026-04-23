@@ -495,6 +495,7 @@ def main():
                 init_feedback_schema, save_feedback, get_feedback, delete_feedback,
                 get_all_feedback, feedback_count, synthesize_feedback,
                 apply_prompt_override, revert_prompt_override, get_prompt_override_info,
+                clear_all_feedback,
             )
             init_feedback_schema(conn)
             _fb_available = True
@@ -572,8 +573,9 @@ def main():
                         if col_a.button("✅ Apply Changes", key="btn_apply_synthesis"):
                             all_fb = get_all_feedback(conn)
                             apply_prompt_override(conn, res["new_prompt"], res["summary"], all_fb)
+                            clear_all_feedback(conn)
                             st.session_state["synthesis_result"] = None
-                            st.success("Prompt updated! Next validation will use the new system prompt.")
+                            st.success("Prompt updated and feedback cleared. Next synthesis will only show new feedback.")
                             st.rerun()
                         if col_d.button("🗑️ Discard", key="btn_discard_synthesis"):
                             st.session_state["synthesis_result"] = None

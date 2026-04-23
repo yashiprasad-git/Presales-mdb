@@ -94,6 +94,13 @@ def delete_feedback(conn, monday_item_id: str) -> None:
     conn.commit()
 
 
+def clear_all_feedback(conn) -> None:
+    """Delete all feedback entries — called after a synthesis is applied."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM validation_feedback")
+    conn.commit()
+
+
 def get_all_feedback(conn) -> List[Dict]:
     """Return all feedback entries ordered by submission time."""
     try:
