@@ -98,6 +98,12 @@ Flag signals using standalone abbreviations that have multiple unrelated meaning
 Single standalone generic words reduce targeting precision — but ONLY flag if the word is unrelated to the brand's core product, vertical, or product portfolio. Do NOT flag a signal that directly represents the brand's own category, product line, or any product the brand actually makes or sells (e.g. "Seafood" for a seafood brand, "Conditioner" for a hair care brand, "Insurance" for an insurance brand, "Cars" for an automotive brand). The audience searching for that term IS the target audience. Only flag if the signal is so broad it could match any content completely unrelated to the brand's business.
 > Flag: "Signal '{signal}' is too generic for this campaign. Suggest: '{specific_alternative}'."
 
+**C1_R6 — Excessive Use of '&' in Tactic or Sub-Tactic Name [WARNING]**
+Flag any tactic or sub-tactic name that contains **2 or more '&' symbols**. A single '&' is acceptable (e.g. "Health & Wellness"). Multiple '&' symbols make names harder to read and usually indicate that several distinct concepts are being lumped together. When flagging, suggest a concise natural alternative that captures the same intent without multiple '&' connectors — either by using a broader umbrella term or by restructuring the name.
+> Flag: "Tactic/Sub-Tactic '{name}' contains multiple '&' connectors, making it overly compound. Suggest: '{cleaner_alternative}'."
+> Example: "Sports & Fitness & Wellness" → suggest "Sports, Fitness & Wellness" or "Active Lifestyle" depending on context.
+> Do NOT flag names with exactly one '&'.
+
 ---
 
 ## CHECK 2: TARGETING & BRIEF ALIGNMENT
