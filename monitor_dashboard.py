@@ -620,6 +620,14 @@ def main():
                 st.write(f"Showing **{total}** / {len(df_val)} campaigns")
                 st.divider()
 
+                # Ensure newest-first order regardless of filter operations
+                filt_val = filt_val.sort_values("validated_at", ascending=False)
+
+                # Threshold for 🆕 badge: validated within last 24 hours
+                from datetime import timedelta
+                _now_utc = datetime.now(timezone.utc)
+                _new_threshold = (_now_utc - timedelta(hours=24)).isoformat(timespec="seconds")
+
                 # ── Campaign cards ───────────────────────────────────────
                 for _, row in filt_val.iterrows():
                     status_label = STATUS_ICONS.get(row.get("overall_status", ""), row.get("overall_status", "—"))
@@ -627,11 +635,22 @@ def main():
                     campaign     = row.get("campaign_name", "—")
                     brand        = row.get("brand_name", "—")
                     region       = row.get("region", "—")
-                    validated_at = row.get("validated_at", "")
+                    validated_at = row.get("validated_at", "") or ""
                     item_id      = row.get("monday_item_id", "")
                     error_log    = row.get("error_log") or ""
                     if str(error_log).lower() == "nan":
                         error_log = ""
+
+                    # Format validated_at for display: "17 Apr, 14:32"
+                    validated_at_display = validated_at
+                    try:
+                        _vdt = datetime.fromisoformat(validated_at.replace("Z", "+00:00"))
+                        validated_at_display = _vdt.strftime("%-d %b, %H:%M") + " UTC"
+                    except Exception:
+                        pass
+
+                    is_new = validated_at >= _new_threshold if validated_at else False
+                    new_badge = " 🆕" if is_new else ""
 
                     errors, warnings, recs = _extract_findings(row.get("full_validation_report", ""))
 
@@ -649,7 +668,7 @@ def main():
                     else:
                         fb_indicator = ""
                     with st.expander(
-                        f"{status_label}  |  {campaign}  —  {brand}  ({region}){fb_indicator}",
+                        f"{new_badge}{status_label}  |  {campaign}  —  {brand}  ({region})  [{validated_at_display}]{fb_indicator}",
                         expanded=False,
                     ):
                         c1, c2, c3 = st.columns(3)
