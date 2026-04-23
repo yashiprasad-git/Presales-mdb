@@ -390,6 +390,58 @@ def _save_validation_result(
 
 
 # ---------------------------------------------------------------------------
+# Single-campaign re-validation
+# ---------------------------------------------------------------------------
+
+def revalidate_campaign(conn, monday_item_id: str, openai_api_key: str) -> str:
+    """
+    Delete existing validation result for one campaign and re-validate it.
+    Returns a status string.
+    """
+    # Fetch campaign row
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT monday_item_id, monday_url, region, campaign_name, brand_name,
+                   vertical, country, rfp_summary, targeting, any_other_details,
+                   products_to_pitch, run_dates
+            FROM campaigns WHERE monday_item_id = %s
+        """, (monday_item_id,))
+        row = cur.fetchone()
+    if not row:
+        return f"Campaign {monday_item_id} not found."
+
+    campaign = dict(row)
+
+    # Delete old result so it gets a fresh pass
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM validation_results WHERE monday_item_id = %s", (monday_item_id,))
+    conn.commit()
+
+    # Load active system prompt
+    try:
+        from feedback_synthesizer import get_active_system_prompt
+        active_system_prompt = get_active_system_prompt(conn)
+    except Exception:
+        active_system_prompt = _load_system_prompt()
+
+    try:
+        context_list = _reconstruct_context_list(conn, monday_item_id)
+        if not context_list["tactics"]:
+            return "No valid context rows found for this campaign."
+        result = _call_openai_validator(campaign, context_list, openai_api_key,
+                                        system_prompt=active_system_prompt)
+        _save_validation_result(conn, monday_item_id, campaign, result)
+        return (f"✅ Re-validated: {result.get('overall_status')} / "
+                f"{result.get('training_label')} "
+                f"(errors: {result.get('errors_count', 0)}, "
+                f"warnings: {result.get('warnings_count', 0)})")
+    except Exception as e:
+        err = str(e)
+        _save_validation_result(conn, monday_item_id, campaign, {}, error=err)
+        return f"❌ Re-validation failed: {err}"
+
+
+# ---------------------------------------------------------------------------
 # Main runner
 # ---------------------------------------------------------------------------
 

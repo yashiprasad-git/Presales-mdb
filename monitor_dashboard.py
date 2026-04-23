@@ -751,6 +751,26 @@ def main():
                         if not errors and not warnings and not recs and not error_log:
                             st.success("No issues found.")
 
+                        # ── Re-validate button ───────────────────────────
+                        st.markdown("---")
+                        if st.button("🔄 Re-validate this campaign", key=f"reval_{item_id}"):
+                            openai_key = ""
+                            try:
+                                openai_key = st.secrets["OPENAI_API_KEY"]
+                            except Exception:
+                                pass
+                            if not openai_key:
+                                st.error("OPENAI_API_KEY not set.")
+                            else:
+                                try:
+                                    from context_validator import revalidate_campaign
+                                    with st.spinner("Re-validating…"):
+                                        msg = revalidate_campaign(conn, item_id, openai_key)
+                                    st.success(msg)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+
                         # ── Feedback box ─────────────────────────────────
                         if _fb_available and item_id:
                             st.markdown("---")
