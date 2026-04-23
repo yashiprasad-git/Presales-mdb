@@ -284,10 +284,10 @@ def _call_openai_validator(
         {"campaign_input": campaign_input, "context_list": context_list},
         ensure_ascii=False,
     )
-    for attempt in range(3):
+    for attempt, model in enumerate(["gpt-4o", "gpt-4o", "gpt-4o-mini"]):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user",   "content": user_message},
@@ -296,9 +296,13 @@ def _call_openai_validator(
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            if "429" in str(e) and attempt < 2:
-                wait = 60 * (attempt + 1)   # 60s, then 120s
-                time.sleep(wait)
+            err = str(e)
+            if "429" in err and "token" in err.lower() and attempt == 0:
+                # Single request too large for TPM limit — retry same model once after a pause
+                time.sleep(65)
+            elif "429" in err and "token" in err.lower() and attempt == 1:
+                # Still failing — fall back to gpt-4o-mini which has higher TPM limits
+                continue
             else:
                 raise
 
