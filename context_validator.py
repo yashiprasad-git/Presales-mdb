@@ -8,6 +8,7 @@ Secrets (via st.secrets or env): OPENAI_API_KEY, DATABASE_URL
 """
 
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
@@ -283,15 +284,23 @@ def _call_openai_validator(
         {"campaign_input": campaign_input, "context_list": context_list},
         ensure_ascii=False,
     )
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_message},
-        ],
-        response_format={"type": "json_object"},
-    )
-    return json.loads(response.choices[0].message.content)
+    for attempt in range(3):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_message},
+                ],
+                response_format={"type": "json_object"},
+            )
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            if "429" in str(e) and attempt < 2:
+                wait = 60 * (attempt + 1)   # 60s, then 120s
+                time.sleep(wait)
+            else:
+                raise
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +407,8 @@ def run_validation(conn, openai_api_key: str) -> str:
                                             system_prompt=active_system_prompt)
             _save_validation_result(conn, item_id, campaign, result)
             validated += 1
+            if validated < len(campaigns):
+                time.sleep(5)   # avoid hitting TPM limits on back-to-back requests
 
             status = result.get("overall_status", "?")
             label  = result.get("training_label", "?")

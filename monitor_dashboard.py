@@ -636,6 +636,8 @@ def main():
                     brand        = row.get("brand_name", "—")
                     region       = row.get("region", "—")
                     validated_at = row.get("validated_at", "") or ""
+                    if str(validated_at).lower() == "nan":
+                        validated_at = ""
                     item_id      = row.get("monday_item_id", "")
                     error_log    = row.get("error_log") or ""
                     if str(error_log).lower() == "nan":
@@ -649,7 +651,12 @@ def main():
                     except Exception:
                         pass
 
-                    is_new = validated_at >= _new_threshold if validated_at else False
+                    # 🆕 only if validated_at is a real ISO timestamp newer than threshold
+                    is_new = (
+                        bool(validated_at)
+                        and validated_at.startswith("20")
+                        and validated_at >= _new_threshold
+                    )
                     new_badge = " 🆕" if is_new else ""
 
                     errors, warnings, recs = _extract_findings(row.get("full_validation_report", ""))
