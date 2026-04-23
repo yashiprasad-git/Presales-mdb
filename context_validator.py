@@ -296,16 +296,10 @@ def _call_openai_validator(
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            err = str(e)
-            if "429" in err and "too large" in err.lower() and model == "gpt-4o":
-                # Request exceeds gpt-4o TPM limit — immediately retry with gpt-4o-mini
+            if "429" in str(e) and model == "gpt-4o":
+                # Any 429 on gpt-4o (too large or rate limit) — fall back to gpt-4o-mini
                 continue
-            elif "429" in err and model == "gpt-4o":
-                # Rate limited (too many requests) — wait and retry same model
-                time.sleep(60)
-                continue
-            else:
-                raise
+            raise
 
 
 # ---------------------------------------------------------------------------
