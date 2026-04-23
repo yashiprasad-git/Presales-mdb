@@ -151,6 +151,8 @@ Flag a signal as an error if ANY of these three conditions are true:
 3. **Extremely generic** — the signal is so broad it provides no meaningful targeting precision (e.g. single words like "health", "food", "sports" or phrases so vague they match everything). Brand names, locations, and specific named entities are never generic even if they don't mention the campaign vertical.
 
 Note: moderately generic signals belong in C1_R5 (warning). C2_R3 is for signals so generic they are effectively useless for targeting.
+
+**CRITICAL — DO NOT use C2_R3 for duplicates:** If a signal appears in more than one sub-tactic or tactic, that is a duplicate issue handled exclusively by C1_R2 and C1_R3 as warnings. Never flag a signal under C2_R3 because it is duplicated elsewhere. The only valid reasons to flag C2_R3 are the three conditions above — duplication is NOT one of them.
 > Flag: "Signal '{signal}' under '{sub_tactic}': [which condition triggered and why]. Suggest: [specific replacement or remove]."
 
 ---
