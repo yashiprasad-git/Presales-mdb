@@ -253,6 +253,41 @@ def _reconstruct_context_list(conn, item_id: str) -> Dict:
 # OpenAI call
 # ---------------------------------------------------------------------------
 
+def _recompute_status(result: Dict) -> Dict:
+    """
+    Recompute errors_count, warnings_count, overall_status and training_label
+    from the actual triggered_rules — overrides whatever the AI self-reported.
+    This prevents mismatches where GPT miscounts or contradicts its own rules.
+    """
+    errors = warnings = recs = 0
+    for check in result.get("check_results", []):
+        for rule in check.get("triggered_rules", []):
+            sev = rule.get("severity", "")
+            if sev == "error":
+                errors += 1
+            elif sev in ("warning", "info"):
+                warnings += 1
+            elif sev == "recommendation":
+                recs += 1
+
+    if errors >= 2:
+        status, label, store = "FAIL_MAJOR",         "DO_NOT_STORE",     False
+    elif errors == 1:
+        status, label, store = "FAIL_MINOR",         "NEGATIVE_EXAMPLE", True
+    elif warnings > 0:
+        status, label, store = "PASS_WITH_WARNINGS", "POSITIVE_EXAMPLE", True
+    else:
+        status, label, store = "PASS",               "POSITIVE_EXAMPLE", True
+
+    result["errors_count"]          = errors
+    result["warnings_count"]        = warnings
+    result["recommendations_count"] = recs
+    result["overall_status"]        = status
+    result["training_label"]        = label
+    result["store_in_training_db"]  = store
+    return result
+
+
 def _load_system_prompt() -> str:
     if not SYSTEM_PROMPT_PATH.exists():
         raise FileNotFoundError(
@@ -294,7 +329,8 @@ def _call_openai_validator(
                 ],
                 response_format={"type": "json_object"},
             )
-            return json.loads(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
+            return _recompute_status(result)
         except Exception as e:
             if "429" in str(e) and model == "gpt-4o":
                 # Any 429 on gpt-4o (too large or rate limit) — fall back to gpt-4o-mini
